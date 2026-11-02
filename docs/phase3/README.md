@@ -11,6 +11,10 @@ Human interrupts remain only at clarification and approval gates. Generation/val
 ## Commands
 
 ```text
+# Interactive: one session, prompts at clarification + approval gates
+agentic run <target> --interactive --requirement "..."
+
+# Explicit gates (also supported)
 agentic approve <target>   # spec gate → auto plan → awaiting_plan_approval
 agentic plan <target>      # inspect graph (or --generate after plan reject)
 agentic approve <target>   # plan gate

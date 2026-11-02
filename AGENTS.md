@@ -50,6 +50,11 @@ This repository is the **Agentic Engineer CLI only**. Target applications are si
 python -m pip install -e ".[dev]"
 pytest
 agentic init ../target-a
+
+# Interactive (prompts at human gates in one session)
+agentic run ../target-a --interactive --requirement "Improve sharing security"
+
+# Explicit gates still supported
 agentic run ../target-a --requirement "Improve sharing security"
 agentic status ../target-a
 agentic run ../target-a --answer "..." --answer "..."

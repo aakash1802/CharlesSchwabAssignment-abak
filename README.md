@@ -66,25 +66,19 @@ python agenticli_test.py version
 # Init target (outside this repo)
 python agenticli_test.py init ..\phase2-test-target
 
-# Start workflow (inline or file)
+# Interactive end-to-end (prompts for clarification + approvals in one session)
+python agenticli_test.py run ..\phase2-test-target --interactive --requirement "Improve sharing security"
+
+# Or non-interactive / explicit gates (also supported)
 python agenticli_test.py run ..\phase2-test-target --requirement "Improve sharing security"
 python agenticli_test.py run ..\phase2-test-target --requirement-file .\requirement.md
-
-# Inspect
 python agenticli_test.py status ..\phase2-test-target
 python agenticli_test.py spec ..\phase2-test-target
-
-# Clarification answers (when status is awaiting_clarification)
 python agenticli_test.py run ..\phase2-test-target --answer "..." --answer "..."
-
-# Human decision (specification gate)
 python agenticli_test.py approve ..\phase2-test-target --comment "ok"
 python agenticli_test.py reject ..\phase2-test-target --comment "rework"
-
-# Spec approve auto-generates the plan; inspect / approve plan gate
 python agenticli_test.py plan ..\phase2-test-target
 python agenticli_test.py approve ..\phase2-test-target --comment "plan ok"
-python agenticli_test.py plan ..\phase2-test-target
 
 # Status / spec after decision
 python agenticli_test.py status ..\phase2-test-target

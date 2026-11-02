@@ -10,6 +10,7 @@ from typing import Optional
 import typer
 
 from agentic_engineer import __version__
+from agentic_engineer.cli.interactive import drive_interactive
 from agentic_engineer.config import configure_from_cli
 from agentic_engineer.graph.requirement_workflow import (
     RequirementWorkflowService,
@@ -62,7 +63,8 @@ def _print_workflow_status(state, *, readable_root: Path | None = None) -> None:
             if question.essential:
                 typer.echo(f"  - [{question.id}] {question.question}")
         typer.echo(
-            'Continue with: agentic run <path> --answer "..." [--answer "..."]'
+            'Continue with: agentic run <path> --interactive'
+            '  OR  agentic run <path> --answer "..." [--answer "..."]'
         )
     if state.specification_id:
         typer.echo(f"specification_id: {state.specification_id}")
@@ -83,7 +85,15 @@ def _print_workflow_status(state, *, readable_root: Path | None = None) -> None:
     if state.pending_approval_id:
         typer.echo(f"pending_approval_id: {state.pending_approval_id}")
         if state.status == "awaiting_plan_approval":
-            typer.echo("Plan gate — respond with: agentic approve <path> | agentic reject <path>")
+            typer.echo(
+                "Plan gate — agentic run <path> --interactive"
+                "  OR  agentic approve <path> | agentic reject <path>"
+            )
+        elif state.status == "awaiting_spec_approval":
+            typer.echo(
+                "Spec gate — agentic run <path> --interactive"
+                "  OR  agentic approve <path> | agentic reject <path>"
+            )
         else:
             typer.echo("Respond with: agentic approve <path> | agentic reject <path>")
     if state.stop_reason:
@@ -168,6 +178,25 @@ def _load_requirement_text(
     raise WorkflowError("Internal error: no requirement source provided")
 
 
+def _show_spec_for_interactive(service: RequirementWorkflowService, state) -> None:
+    md_path = service.readable_root() / "SPECIFICATION.md"
+    typer.echo("")
+    if md_path.is_file():
+        typer.echo(md_path.read_text(encoding="utf-8"))
+    elif state.specification is not None:
+        typer.echo(json.dumps(state.specification.model_dump(mode="json"), indent=2))
+
+
+def _show_plan_for_interactive(service: RequirementWorkflowService, state) -> None:
+    typer.echo("")
+    if state.plan is not None:
+        typer.echo(service.format_plan_display(state.plan))
+        return
+    md_path = service.readable_root() / "PLAN.md"
+    if md_path.is_file():
+        typer.echo(md_path.read_text(encoding="utf-8"))
+
+
 @app.command("run")
 def run_cmd(
     project_path: str = typer.Argument(..., help="Target project path"),
@@ -192,6 +221,16 @@ def run_cmd(
         "-a",
         help="Clarification answer (repeatable). Continues an awaiting-clarification workflow.",
     ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        "-i",
+        help=(
+            "Drive end-to-end in this session: auto-advance generation/validation, "
+            "and prompt inline for clarification / approve / reject. "
+            "Explicit approve/reject/--answer commands still work without this flag."
+        ),
+    ),
 ) -> None:
     """Start or continue the requirement-intelligence workflow."""
     workspace = _open_workspace(project_path)
@@ -203,6 +242,11 @@ def run_cmd(
                 "Pass either a requirement (--requirement / --requirement-file) "
                 "or --answer, not both"
             )
+        if answer and interactive:
+            raise WorkflowError(
+                "Pass either --answer or --interactive, not both "
+                "(interactive will prompt for answers)"
+            )
         if has_req:
             text = _load_requirement_text(
                 requirement=requirement,
@@ -211,10 +255,25 @@ def run_cmd(
             state = service.start(text)
         elif answer:
             state = service.provide_answers(list(answer))
+        elif interactive:
+            # Resume parked workflow and continue prompting through remaining gates.
+            state = service.load_active()
         else:
             raise WorkflowError(
                 "Provide --requirement or --requirement-file to start, "
-                "or --answer to continue clarification"
+                "--answer to continue clarification, "
+                "or --interactive to resume and prompt through human gates"
+            )
+
+        if interactive:
+            state = drive_interactive(
+                service,
+                state,
+                show_status=lambda s: _print_workflow_status(
+                    s, readable_root=service.readable_root()
+                ),
+                show_spec=lambda s: _show_spec_for_interactive(service, s),
+                show_plan=lambda s: _show_plan_for_interactive(service, s),
             )
     except WorkflowError as exc:
         _handle_workspace_errors(exc)

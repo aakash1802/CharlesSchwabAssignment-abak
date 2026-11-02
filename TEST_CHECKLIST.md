@@ -54,7 +54,81 @@ python agenticli_test.py init .
 
 ---
 
-## C. Phase 2 — requirement (inline)
+## C0. Interactive end-to-end (recommended demo)
+
+Prompts inline for clarification and each approval gate; generation/validation advances automatically.  
+Explicit `approve` / `reject` / `--answer` remain available (sections C–G below).
+
+- [ ] Interactive run (long flag)
+
+```powershell
+python agenticli_test.py run ..\phase2-test-target --interactive --requirement "Improve sharing security"
+```
+
+- [ ] Interactive run (short flags)
+
+```powershell
+python agenticli_test.py run ..\phase2-test-target -i -r "Improve sharing security"
+```
+
+At prompts:
+
+1. Clarification — type each answer, Enter  
+2. Spec gate — `a` (approve) / `r` (reject) / `c` (changes-requested), then optional comment  
+3. Plan gate — same `a` / `r` / `c` after the plan is auto-generated  
+
+Example answers for the ambiguous requirement above:
+
+```text
+Require signed share links that expire in 24 hours
+Must not break existing public reads
+a
+ok
+a
+plan ok
+```
+
+Expect final status: `plan_approved`.
+
+- [ ] Status after interactive run
+
+```powershell
+python agenticli_test.py status ..\phase2-test-target
+```
+
+- [ ] Show plan after interactive approve
+
+```powershell
+python agenticli_test.py plan ..\phase2-test-target
+```
+
+- [ ] Resume a parked workflow interactively (if you exited mid-gate)
+
+```powershell
+python agenticli_test.py run ..\phase2-test-target --interactive
+```
+
+- [ ] Interactive clear-requirement path (no clarification)
+
+```powershell
+python agenticli_test.py init ..\phase3-interactive-clear
+python agenticli_test.py run ..\phase3-interactive-clear -i -r "Add a /health endpoint that returns status ok and the app version string"
+```
+
+At prompts: `a` + comment for spec, then `a` + comment for plan.
+
+- [ ] Interactive reject at spec gate (optional)
+
+```powershell
+python agenticli_test.py init ..\phase3-interactive-reject
+python agenticli_test.py run ..\phase3-interactive-reject -i -r "Add a /health endpoint that returns status ok and the app version string"
+```
+
+At prompt: `r` then a comment. Expect status `spec_rejected`.
+
+---
+
+## C. Phase 2 — requirement (inline, non-interactive)
 
 - [ ] Run with inline requirement
 
