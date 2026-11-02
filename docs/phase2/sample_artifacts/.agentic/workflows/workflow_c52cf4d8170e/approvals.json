@@ -1,0 +1,15 @@
+{
+  "approvals": [
+    {
+      "approval_type": "specification",
+      "artifact_ref": "spec_e61785ae63",
+      "comment": "Approved for Phase 2 audit sample",
+      "created_at": "2026-11-02T07:40:06.295220Z",
+      "decided_at": "2026-11-02T07:40:08.022998Z",
+      "decision": "approved",
+      "id": "appr_2d93c87c50",
+      "requested_action": "Approve generated specification for engineering planning",
+      "workflow_id": "workflow_c52cf4d8170e"
+    }
+  ]
+}

@@ -1,51 +1,85 @@
-# Charles Schwab Assignment (abak)
+# Agentic Engineer (Charles Schwab Assignment)
 
-Documentation scaffold for a working prototype. The prototype transforms a requirement into a reviewable engineering outcome through an agentic execution model. Application code has not been started.
+Prototype of a **standalone agentic software-engineering CLI**: it creates, modifies, tests, and documents *other* projects under controlled autonomy.
+
+Concrete demonstration target applications are **deferred** and will be defined later. This repository is the CLI only.
 
 ## Status
 
 | Item | State |
 | --- | --- |
-| Requirements | Captured in [REQUIREMENTS.md](REQUIREMENTS.md). Input format, outcome artifacts, and the autonomy control mechanism are still open. |
-| Architecture | Stage sequence recorded in [ARCHITECTURE.md](ARCHITECTURE.md). Stack and storage are not chosen. |
-| Application code | Not started |
-| Runtime | Local Python virtual environment exists (`.venv`). Language and libraries are not chosen. |
+| Requirements | [REQUIREMENTS.md](REQUIREMENTS.md) |
+| Architecture | Phase 0 approved (full plan retained) |
+| Phase 1 foundation | Approved |
+| Phase 2 requirement intelligence | **Current boundary** — implemented; audit package ready |
+| Phase 2 audit / review artifacts | [docs/phase2/](docs/phase2/) |
+| Phases 3–6 | Deferred until lead explicitly resumes |
+| Demo target apps | Deferred |
+| Runtime | Python 3.11+; install with `pip install -e ".[dev]"` |
 
-## What this repository is for
+Lead intent: build and test **through Phase 2 for now**; resume later phases afterward without changing the architecture.
 
-This repository will hold a prototype that takes one requirement through requirement understanding, task decomposition, multi-step execution, and output generation and validation. The focus is end-to-end SDLC automation with controlled autonomy. The outcome must be reviewable. Details that the brief does not decide are open questions in [REQUIREMENTS.md](REQUIREMENTS.md).
+### Phase 2 review package
+
+See [docs/phase2/README.md](docs/phase2/README.md) for the delivery report, acceptance checklist, reviewer guide, pytest capture, and sample `.agentic` artifacts.
+
+### LLM configuration (Phase 2)
+
+Default is `mock` (no API key). For Anthropic:
+
+```powershell
+python -m pip install -e ".[dev,anthropic]"
+$env:AGENTIC_LLM_PROVIDER = "anthropic"
+$env:AGENTIC_LLM_MODEL = "claude-sonnet-4-5"
+$env:AGENTIC_LLM_API_KEY = "sk-ant-..."   # or ANTHROPIC_API_KEY
+```
+
+Details: [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md) and [`.env.example`](.env.example).
+
+## Product boundary
+
+```text
+PycharmProjects/
+├── CharlesSchwabAssignment-abak/   ← this repo = Agentic Engineer CLI
+└── <target-project>/               ← separate target (later)
+    └── .agentic/                   ← workflow metadata only
+```
+
+## Quick start (Phase 1)
+
+```text
+python -m pip install -e ".[dev]"
+pytest
+agentic version
+agentic init ../target-a
+agentic init ../target-b
+agentic status ../target-a
+# agentic init .   → must fail (cannot target CLI repo)
+```
 
 ## Documentation
 
 | Document | Purpose |
 | --- | --- |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | Problem statement, scope, and acceptance criteria |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System shape, components, and open design decisions |
-| [AGENTS.md](AGENTS.md) | Working agreement for coding agents in this repository |
-
-## Getting started
-
-There is nothing to install or run yet.
-
-When implementation begins, this section should cover:
-
-- Supported Python version
-- How to create or refresh the virtual environment
-- How to install dependencies
-- How to run the application and tests
+| [REQUIREMENTS.md](REQUIREMENTS.md) | Scope and acceptance criteria |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture |
+| [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) | ADRs and trade-offs |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Phased delivery |
+| [AGENTS.md](AGENTS.md) | Working agreement for coding agents |
 
 ## Repository layout
 
-Expected layout once work starts. None of these directories exist yet.
-
 ```text
 .
-├── README.md
-├── AGENTS.md
-├── ARCHITECTURE.md
-├── REQUIREMENTS.md
-├── src/            # application code
-└── tests/          # automated tests
+├── pyproject.toml
+├── src/agentic_engineer/
+│   ├── cli/
+│   ├── config/
+│   ├── models/
+│   ├── workspace/
+│   ├── persistence/
+│   └── llm/
+└── tests/unit/
 ```
 
 ## License

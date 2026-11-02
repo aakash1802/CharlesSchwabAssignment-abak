@@ -1,0 +1,35 @@
+{
+  "acceptance_criteria": [
+    "Specification reviewed and approved by a human",
+    "Implementation matches listed functional requirements",
+    "Out-of-scope items are not implemented without a new approval"
+  ],
+  "assumptions": [
+    "Clarified q1: Require signed share links that expire in 24 hours",
+    "Clarified q2: Must not break existing public read links"
+  ],
+  "constraints": [],
+  "created_at": "2026-11-02T07:40:06.289860Z",
+  "functional_requirements": [
+    "Require signed share links that expire in 24 hours",
+    "Must not break existing public read links",
+    "Clarified: What concrete behavior or outcome should change? \u2192 Require signed share links that expire in 24 hours",
+    "Clarified: What constraints or non-functional needs matter (security, performance, compatibility)? \u2192 Must not break existing public read links"
+  ],
+  "id": "spec_e61785ae63",
+  "in_scope": [
+    "Require signed share links that expire in 24 hours",
+    "Must not break existing public read links",
+    "Clarified: What concrete behavior or outcome should change? \u2192 Require signed share links that expire in 24 hours",
+    "Clarified: What constraints or non-functional needs matter (security, performance, compatibility)? \u2192 Must not break existing public read links"
+  ],
+  "non_functional_requirements": [],
+  "out_of_scope": [
+    "Unrelated refactors",
+    "Infrastructure not implied by the requirement"
+  ],
+  "schema_version": 1,
+  "summary": "Require signed share links that expire in 24 hours",
+  "title": "Require signed share links that expire in 24 hours",
+  "workflow_id": "workflow_c52cf4d8170e"
+}

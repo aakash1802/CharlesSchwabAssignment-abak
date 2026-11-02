@@ -1,87 +1,93 @@
 # Requirements
 
-Assignment brief for a working prototype. Statements below are the brief. Items the brief does not decide stay in Open questions.
+Normative brief for the **Agentic Engineer** prototype. Statements below supersede the earlier generic scaffold where they conflict. Items still undecided stay under Open questions.
 
 ## Status
 
-Captured. Acceptance criteria cover the path from a requirement to a reviewable outcome. Language, artifact format, and the control mechanism for autonomy are still open.
+Captured from the Master Build Prompt (Phase 0), with demo-target application details **deferred** per lead direction. Architecture approved. **Current delivery boundary: Phase 2** (requirement → spec → human approval). Phases 3+ are planned but deferred until the lead resumes them — see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Problem statement
 
-Build a working prototype that transforms a requirement into a reviewable engineering outcome using an agentic execution model. Demonstrate requirement understanding, task decomposition, multi-step execution, and output generation and validation. Focus on end-to-end software development lifecycle (SDLC) automation with controlled autonomy.
+Build a working prototype of a **standalone agentic software-engineering CLI** that converts natural-language requirements into reviewable engineering outcomes for **independent target projects**. The CLI must demonstrate controlled, stateful, dependency-aware agentic execution (not a thin chain of unstructured LLM calls).
+
+The CLI is the product. Concrete demonstration target applications will be defined later.
 
 ## Source statements
 
 | Id | Statement |
 | --- | --- |
-| R1 | Build a working prototype. |
-| R2 | The prototype transforms a requirement into a reviewable engineering outcome. |
-| R3 | The prototype uses an agentic execution model. |
-| R4 | The prototype demonstrates requirement understanding. |
-| R5 | The prototype demonstrates task decomposition. |
-| R6 | The prototype demonstrates multi-step execution. |
-| R7 | The prototype demonstrates output generation and validation. |
-| R8 | The focus is end-to-end SDLC automation with controlled autonomy. |
+| R1 | Build a working prototype of an agentic software engineering CLI. |
+| R2 | The CLI transforms a natural-language requirement into a reviewable engineering outcome for a target project. |
+| R3 | The CLI uses an agentic execution model with specialized agents and LangGraph orchestration. |
+| R4 | The CLI demonstrates requirement understanding, including ambiguity and missing information. |
+| R5 | The CLI demonstrates task decomposition into an explicit dependency graph. |
+| R6 | The CLI demonstrates multi-step, dependency-aware execution (sequential and parallel where appropriate). |
+| R7 | The CLI generates or modifies application code/tests/docs and records validation results. |
+| R8 | Autonomy is controlled: human approvals, deterministic governance, bounded retries, safe-stop, auditability. |
+| R9 | The CLI and each target application are separate projects; the target must not depend on the CLI at runtime. |
+| R10 | All target file operations go through a Workspace abstraction with isolation and path safety. |
+| R11 | Project-specific workflow state lives under the target’s `.agentic/`; global CLI config holds credentials/defaults only. |
+| R12 | The CLI must be capable of greenfield, brownfield, and ambiguous-requirement workflows; concrete demo apps for those modes are deferred. |
 
 ## Users and context
 
 | Question | Answer |
 | --- | --- |
-| Who uses the result? | A reviewer of the engineering outcome (R2). The brief does not name a role or team. |
-| What job does it do? | Transform a requirement into a reviewable engineering outcome through an agentic execution model (R2, R3). |
-| What inputs does it receive? | A requirement (R2). The format is not specified. |
-| What outputs must it produce? | A reviewable engineering outcome that shows requirement understanding, the task breakdown, the execution steps, the generated output, and the validation result (R2, R4, R5, R6, R7). |
+| Who uses the result? | A technical reviewer / human operator of the CLI (R2, R8). |
+| What job does it do? | Drive an engineering workflow on a target project from requirement to reportable outcome (R2–R8). |
+| What inputs does it receive? | A target project path and a natural-language requirement string (and later approval decisions) (R2). |
+| What outputs must it produce? | Spec, plan/graph, code/test/doc changes in the target, approvals history, audit trail, metrics (where data exists), final report (R2, R7, R8). |
 
 ## In scope
 
-- A working prototype (R1).
-- An agentic execution model that takes a requirement through to an outcome (R2, R3).
-- Requirement understanding (R4).
-- Task decomposition (R5).
-- Multi-step execution (R6).
-- Output generation and validation (R7).
-- End-to-end SDLC automation with controlled autonomy (R8).
+- Installable Agentic Engineer CLI (this repository) (R1, R9).
+- Workspace isolation and `.agentic/` persistence (R10, R11).
+- Requirement analysis, specification, approvals (R4, R8).
+- Task planning, dependency validation, LangGraph execution (R3, R5, R6).
+- Developer/testing/failure-analysis loop with bounded retries (R7, R8).
+- Audit events, derived metrics, final report (R8).
 
-## Out of scope
+## Out of scope (now)
 
-- Production operation beyond a working prototype (R1).
-- Autonomy with no reviewer-visible bound (R2, R8).
-- Behaviors the brief does not request. See Open questions before treating anything else as scope.
+- Concrete demo target application source, APIs, and scenario scripts (deferred).
+- Production multi-tenant SaaS, web dashboard, K8s, Redis, Postgres, vector DBs.
+- CrewAI/AutoGen or a second custom DAG engine beside LangGraph.
+- Embedding any target application inside the CLI repository (R9).
+- Unrestricted shell access or LLM self-approval (R8, R10).
+- Features deferred in [ARCHITECTURE.md](ARCHITECTURE.md) §2 “Deferred”.
 
 ## Constraints
 
 | Constraint | Detail |
 | --- | --- |
-| Language / platform | Not stated. A local Python virtual environment exists; it is not a requirement. |
-| External services | Not stated. |
-| Time or size limits | Not stated. |
-| Data handling | Not stated. Repository rule: credentials and personal data stay out of the repository. |
+| Language / platform | Python 3.11+; Typer; Pydantic; LangGraph; Pytest (proposed — confirm in ADR-003). |
+| Time | Roughly 5–6 hours; prefer working vertical slice over breadth. |
+| Secrets | Never commit API keys or tokens. |
+| Separation | Target must not import CLI; CLI must not treat itself as a target (R9, R10). |
+| Charles Schwab API | Not required by this brief. |
 
 ## Acceptance criteria
 
-- [ ] AC1. Given a requirement, when the prototype runs, then it produces an engineering outcome a reviewer can inspect (R1, R2).
-- [ ] AC2. Given a requirement, when the prototype runs, then the outcome shows how that requirement was understood (R4).
-- [ ] AC3. Given a requirement, when the prototype runs, then the outcome shows a decomposition into tasks (R5).
-- [ ] AC4. Given a requirement, when the prototype runs, then execution has more than one step and those steps are visible in the outcome (R6).
-- [ ] AC5. Given a requirement, when the prototype runs, then it generates an output and records a validation result for that output (R7).
-- [ ] AC6. Given one requirement, when the prototype runs to completion, then a reviewer can follow one path from that requirement through understanding, task decomposition, multi-step execution, generated output, and validation (R3, R8).
-
-R8 also requires controlled autonomy. How control is applied is an open question, so there is no separate pass/fail check for the control mechanism yet.
+- [ ] AC1. Given a target path and requirement, when the CLI runs to a terminal state, then a reviewer can inspect a coherent engineering outcome (spec/plan/changes/report as applicable) (R1, R2).
+- [ ] AC2. The outcome records how the requirement was understood, including ambiguities or clarifications when present (R4).
+- [ ] AC3. The outcome includes a task decomposition with explicit dependencies (R5).
+- [ ] AC4. Execution shows multiple steps and respects dependencies; independent tasks may run in parallel (R6).
+- [ ] AC5. Generated or modified outputs are validated (e.g. tests) and the validation result is recorded (R7).
+- [ ] AC6. A reviewer can follow one path from requirement through understanding, planning, execution, validation, and report under visible control bounds (approvals, retry limits, or safe-stop) (R3, R8).
+- [ ] AC7. A target project initialized or modified by the CLI runs without depending on the CLI package (R9).
+- [ ] AC8. Workspace operations reject CLI self-targeting and path escapes; two targets do not share workflow metadata (R10, R11).
 
 ## Assumptions
 
-- The input is a single requirement (R2).
-- "Working" means the prototype can be run on a requirement and produce the outcome (R1).
-- "Reviewable" means a person can inspect the outcome and the path that produced it (R2).
-- "Multi-step" means more than one execution step (R6).
-- Understanding, decomposition, execution, generation, and validation are stages of one flow (R8).
+- Input requirement is plain text via CLI flag (R2).
+- “Reviewable” includes artifacts under `.agentic/` plus `agentic report` (R2, R8).
+- Default max automatic retries per task is 2 unless configuration overrides (R8).
+- Fixture/temp targets are sufficient until demo apps are defined (R12).
 
 ## Open questions
 
-- [ ] What form is the input requirement (plain text, a file, a ticket, or something else)?
-- [ ] Which artifacts count as a reviewable engineering outcome (document, code, tests, execution trace, or a combination)?
-- [ ] What does controlled autonomy mean here (human approval, policy limits, a step budget, or another bound)?
-- [ ] Which SDLC activities sit inside "end-to-end" beyond understanding, decomposition, execution, generation, and validation?
-- [ ] Which language, framework, and libraries should the prototype use?
-- [ ] Does the assignment require a Charles Schwab API, sandbox, or sample data? The brief does not mention one.
-- [ ] What must be submitted besides the running prototype?
+- [ ] Confirm ADRs in [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) (especially CLI-only repo, stack, simplified replan, deferred demo apps).
+- [x] Real LLM for live runs: **Anthropic** via `AGENTIC_LLM_PROVIDER=anthropic` (Phase 2). See [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md).
+- [ ] Submission packaging expectations for the CLI alone.
+- [ ] Whether to rename/move into a physical `workspace/agentic-engineer` folder for the write-up (ADR-002).
+- [ ] *(Later)* Which demo target application(s), stacks, and scenarios to use.
