@@ -2,17 +2,17 @@
 
 Phased delivery for the Agentic Engineer CLI prototype. Each phase ends with tests, a short demo of what works, explicit limitations, and a **stop for lead approval**.
 
-**Status:** Lead pause — **build and test through Phase 2 only.** Phases 3–6 remain planned but deferred until the lead explicitly resumes them.
+**Status:** **Active build through Phase 3** (planning and dependency graph). Phases 4–6 remain planned but deferred until the lead explicitly resumes them.
 
 **Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md), [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md).
 
-**Note:** Concrete demo target applications and scenario scripts are **deferred** (see Phase 6). Current focus is the CLI through requirement → spec → human approval.
+**Note:** Concrete demo target applications and scenario scripts are **deferred** (see Phase 6). Current focus is the CLI through requirement → spec → plan → plan approval.
 
 ### Lead checkpoint (recorded)
 
-- **Intent:** Stabilize Phase 2 with tests and manual runs; do not implement Phase 3+ yet.
-- **Architecture:** Unchanged. Pausing at Phase 2 does not revise ADRs or later-phase design.
-- **Resume:** Start Phase 3 only after an explicit lead instruction (e.g. “resume Phase 3”).
+- **Intent:** Implement and stabilize Phase 3; do not implement Phase 4+ yet.
+- **Architecture:** Unchanged. Resuming Phase 3 does not revise ADRs or later-phase design.
+- **Resume:** Start Phase 4 only after an explicit lead instruction (e.g. “resume Phase 4”).
 
 ---
 
@@ -113,7 +113,7 @@ Pytest green for workspace + init; lead approval for Phase 2.
 
 ## Phase 2 — Requirement intelligence
 
-**Status:** Implemented — **current delivery boundary.** Test and stabilize here; Phases 3+ deferred until lead resumes.
+**Status:** Approved.
 
 **Audit package:** [docs/phase2/README.md](docs/phase2/README.md) (delivery report, checklist, reviewer guide, pytest capture, sample `.agentic` artifacts).
 
@@ -141,6 +141,7 @@ tests/… mocked LLM transcripts for ambiguous vs clear requirements
 - Structured analysis (functional / non-functional / constraints / ambiguities / missing).
 - Gate: essential clarification → CLI prompts or recorded Q&A before spec.
 - Spec model + persistence under `.agentic/specifications/`.
+- Human-readable Markdown under `.agentic/readable/` (latest `ANALYSIS.md` / `SPECIFICATION.md` plus `phases/*.md` after each Phase 2 step) (R13).
 - Approval record pending → `agentic approve|reject`.
 - Ambiguous-requirement path covered with mock LLM (generic fixture requirement, not a specific product).
 - **LLM providers in Phase 2:** `MockProvider` + `AnthropicProvider` via `build_provider()` / env config. See [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md).
@@ -163,13 +164,13 @@ No task graph yet; no code generation; no real demo app.
 - [x] Ambiguity path and approval path tested
 - [x] Implementation artifacts published under `docs/phase2/` for audit/review
 - [x] Real LLM provider (Anthropic) + mock delivered in Phase 2 (do not re-implement in later phases)
-- [ ] Lead sign-off on Phase 2 package (then remain paused, or later resume Phase 3)
+- [x] Lead sign-off on Phase 2 package; Phase 3 resumed
 
 ---
 
 ## Phase 3 — Planning and dependency graph
 
-**Status:** Deferred — do not start until lead resumes after Phase 2 testing.
+**Status:** Implemented — **current delivery boundary.** Test and stabilize; Phases 4+ deferred until lead resumes.
 
 ### Objective
 
@@ -195,6 +196,7 @@ tests/unit/test_dependency_validation.py
 - Deterministic validators (missing refs, cycles, completion rules).
 - API to list ready tasks and parallel cohorts.
 - Plan persistence + plan approval gate.
+- Human-readable `readable/PLAN.md` and a `phases/` summary after plan generation/approval (R13).
 - Demo graph with both sequential and parallel edges (fixture-shaped, not app-specific).
 
 ### Demo
@@ -205,13 +207,16 @@ agentic plan ../demo-target
 agentic approve ../demo-target  # plan gate
 ```
 
-### Limitations
-
-Planner may still be mock-driven; no full Developer execution.
-
 ### Exit criteria
 
-Cycle detection and parallel ready-set tests pass; lead approval for Phase 4.
+- [x] Cycle detection and parallel ready-set tests
+- [x] Plan persistence + readable `PLAN.md` + plan approval gate
+- [x] CLI `agentic plan` + reuse `approve`/`reject` for plan gate
+- [ ] Lead approval for Phase 4
+
+### Limitations
+
+Planner may still be mock-driven; no Developer/Testing execution; no LangGraph task fan-out yet.
 
 ---
 
@@ -243,6 +248,7 @@ tests/integration/test_retry_and_safe_stop.py
 - Failure Analysis recommendations; Python enforces max retries (default 2).
 - File/SQLite LangGraph checkpointer under `.agentic/workflows/<id>/checkpoints/`.
 - `agentic resume` restores thread.
+- After each execution phase/node cohort completes, write a human-readable `readable/phases/` summary (R13).
 
 ### Demo
 
@@ -272,6 +278,7 @@ Make outcomes auditable and demonstrably controlled.
 - Simplified dynamic replan: patch plan, invalidate downstream, re-approve if material.
 - Checkpoint recovery narrative; refuse unsafe rollback.
 - `agentic report` / `history`.
+- Human-readable final report Markdown under `.agentic/readable/` (and/or `reports/`) in addition to machine JSON (R13).
 - Release approval gate.
 
 ### Exit criteria

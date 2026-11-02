@@ -4,16 +4,17 @@ Working agreement for coding agents in this repository. Read this file before ch
 
 ## Current phase
 
-**Active build scope: Phases 0–2 only.**
+**Active build scope: Phases 0–3.**
 
-Lead intent: implement, test, and stabilize through **Phase 2** (requirement intelligence). **Do not start Phase 3+** until the lead explicitly resumes later phases.
+Lead intent: implement, test, and stabilize through **Phase 3** (planning and dependency graph). **Do not start Phase 4+** until the lead explicitly resumes later phases.
 
 | Phase | State |
 | --- | --- |
 | 0 Architecture | Approved |
 | 1 Foundation | Approved |
-| 2 Requirement intelligence | Implemented — test/stabilize; audit package in `docs/phase2/` |
-| 3–6 | Deferred until lead resumes |
+| 2 Requirement intelligence | Approved |
+| 3 Planning and dependency graph | Implemented — test/stabilize; notes in `docs/phase3/` |
+| 4–6 | Deferred until lead resumes |
 
 - Requirements: [REQUIREMENTS.md](REQUIREMENTS.md)
 - Architecture: [ARCHITECTURE.md](ARCHITECTURE.md) (full plan remains valid; later phases unchanged)
@@ -27,12 +28,12 @@ This repository is the **Agentic Engineer CLI only**. Target applications are si
 1. [README.md](README.md) for status and layout.
 2. [REQUIREMENTS.md](REQUIREMENTS.md) for scope and acceptance criteria.
 3. [ARCHITECTURE.md](ARCHITECTURE.md) and [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) for design.
-4. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for phases and the pause-at-Phase-2 rule.
+4. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for phases and the pause-at-Phase-3 rule.
 
 ## How to work
 
-- Keep changes inside the Phase 0–2 surface unless the lead reopens Phase 3+.
-- Prefer fixing/testing Phase 2 over adding Phase 3 features.
+- Keep changes inside the Phase 0–3 surface unless the lead reopens Phase 4+.
+- Prefer completing/testing Phase 3 over adding Phase 4 features.
 - Update the matching document when behavior, scope, or structure changes.
 - Do not commit secrets, tokens, or local environment files.
 - Do not treat `.venv` as source. Do not edit files inside it.
@@ -43,9 +44,7 @@ This repository is the **Agentic Engineer CLI only**. Target applications are si
 - Config: [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md), [`.env.example`](.env.example)
 - Phases 3+ must inject/`build_provider()` — no second LLM subsystem
 
-## Verification (Phase 2)
-
-Audit package: [docs/phase2/README.md](docs/phase2/README.md)
+## Verification (Phase 3)
 
 ```text
 python -m pip install -e ".[dev]"
@@ -55,5 +54,9 @@ agentic run ../target-a --requirement "Improve sharing security"
 agentic status ../target-a
 agentic run ../target-a --answer "..." --answer "..."
 agentic approve ../target-a
-agentic spec ../target-a
+# → auto-generates plan; parks at awaiting_plan_approval
+agentic plan ../target-a
+agentic approve ../target-a
+agentic plan ../target-a
+agentic status ../target-a
 ```

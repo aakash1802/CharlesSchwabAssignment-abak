@@ -15,9 +15,10 @@ For lead / auditor review. Mark each item during review.
 - [x] Clear requirement proceeds to specification without forced clarification
 - [x] Ambiguous requirement stops for essential questions
 - [x] Spec persisted under `.agentic/specifications/`
+- [x] Human-readable Markdown under `.agentic/readable/` (ANALYSIS / SPECIFICATION + `phases/`)
 - [x] `agentic approve` records human decision (`decision=approved`)
 - [x] `agentic reject` records rejection without LLM involvement
-- [x] `agentic spec` / `status` expose reviewable state
+- [x] `agentic spec` / `status` expose reviewable state (Markdown default for `spec`)
 - [x] CLI refuses to treat the CLI repository as a target (Phase 1 control still holds)
 
 ## Governance / architecture checks

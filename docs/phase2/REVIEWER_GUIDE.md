@@ -20,6 +20,8 @@ Use any directory **outside** this repository (sibling folder or temp path).
 ```text
 agentic init ../phase2-review-target
 agentic run ../phase2-review-target --requirement "Improve sharing security"
+# or multiline from a file:
+# agentic run ../phase2-review-target --requirement-file ./requirement.md
 agentic status ../phase2-review-target
 agentic run ../phase2-review-target --answer "Require signed share links that expire in 24 hours" --answer "Must not break existing public read links"
 agentic approve ../phase2-review-target --comment "Reviewer acceptance"
@@ -32,6 +34,9 @@ agentic status ../phase2-review-target
 ```text
 ../phase2-review-target/.agentic/config.json
 ../phase2-review-target/.agentic/specifications/spec_*.json
+../phase2-review-target/.agentic/readable/ANALYSIS.md
+../phase2-review-target/.agentic/readable/SPECIFICATION.md
+../phase2-review-target/.agentic/readable/phases/
 ../phase2-review-target/.agentic/workflows/workflow_*/state.json
 ../phase2-review-target/.agentic/workflows/workflow_*/approvals.json
 ```

@@ -21,4 +21,5 @@ class AgenticProjectConfig(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
     active_workflow_id: str | None = None
     active_specification_id: str | None = None
+    active_plan_id: str | None = None
     notes: str | None = None

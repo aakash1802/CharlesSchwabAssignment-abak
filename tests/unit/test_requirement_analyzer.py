@@ -26,6 +26,31 @@ def test_deterministic_clear_requirement() -> None:
     assert analysis.functional_requirements
 
 
+def test_deterministic_detailed_spec_mentioning_security_is_clear() -> None:
+    """NFR word 'security' must not force clarification on an otherwise concrete ask."""
+    requirement = (
+        "Create a URL shortening service with the following functionality:\n"
+        "1. Accept a long URL through a REST API.\n"
+        "2. Generate a unique short code and return the shortened URL.\n"
+        "3. Redirect users to the original URL when they access the short URL.\n"
+        "4. Track clicks for each shortened URL.\n"
+        "5. Provide an analytics API to retrieve click counts.\n"
+        "6. Support URL expiration.\n"
+        "7. Support deleting or deactivating shortened URLs.\n"
+        "8. Validate URLs and handle invalid, expired, and unknown short codes.\n"
+        "\n"
+        "Use sensible defaults for technology, architecture, security, and performance. "
+        "Prefer a simple, maintainable implementation. Document assumptions rather than "
+        "asking for clarification on routine technical choices.\n"
+        "\n"
+        "No additional business-specific constraints are required at this stage."
+    )
+    analysis = deterministic_analyze(requirement)
+    assert analysis.needs_clarification is False
+    assert analysis.clarification_questions == []
+    assert analysis.functional_requirements
+
+
 def test_analyzer_uses_scripted_llm_json() -> None:
     payload = {
         "original_requirement": "x",

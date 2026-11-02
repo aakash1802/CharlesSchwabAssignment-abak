@@ -14,6 +14,7 @@ Phases 3+ are deferred by lead intent. Full architecture remains in [ARCHITECTUR
 | [LLM_CONFIGURATION.md](LLM_CONFIGURATION.md) | mock + Anthropic setup (Phase 2 — reuse later) |
 | [pytest_results.txt](pytest_results.txt) | Captured pytest summary |
 | [sample_artifacts/](sample_artifacts/) | Real `.agentic/` output from an ambiguous-requirement run |
+| [TEST_CHECKLIST.md](../../TEST_CHECKLIST.md) | Manual test commands (init, requirement file, status, spec, …) |
 
 ## Quick verdict for reviewers
 

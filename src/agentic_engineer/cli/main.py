@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 import typer
 
 from agentic_engineer import __version__
-from agentic_engineer.config import get_settings
+from agentic_engineer.config import configure_from_cli
 from agentic_engineer.graph.requirement_workflow import (
     RequirementWorkflowService,
     WorkflowError,
@@ -51,7 +52,7 @@ def _open_workspace(project_path: str) -> Workspace:
         raise
 
 
-def _print_workflow_status(state) -> None:
+def _print_workflow_status(state, *, readable_root: Path | None = None) -> None:
     typer.echo(f"workflow_id: {state.workflow_id}")
     typer.echo(f"status: {state.status}")
     typer.echo(f"requirement: {state.requirement}")
@@ -65,9 +66,26 @@ def _print_workflow_status(state) -> None:
         )
     if state.specification_id:
         typer.echo(f"specification_id: {state.specification_id}")
+    if state.plan_id:
+        typer.echo(f"plan_id: {state.plan_id}")
+    if state.status == "spec_approved":
+        typer.echo(
+            "Plan generation stalled — retry with: agentic plan <path> [--generate]"
+        )
+    if readable_root is not None:
+        typer.echo(f"readable_dir: {readable_root}")
+        if (readable_root / "SPECIFICATION.md").is_file():
+            typer.echo(f"readable_spec: {readable_root / 'SPECIFICATION.md'}")
+        if (readable_root / "ANALYSIS.md").is_file():
+            typer.echo(f"readable_analysis: {readable_root / 'ANALYSIS.md'}")
+        if (readable_root / "PLAN.md").is_file():
+            typer.echo(f"readable_plan: {readable_root / 'PLAN.md'}")
     if state.pending_approval_id:
         typer.echo(f"pending_approval_id: {state.pending_approval_id}")
-        typer.echo("Respond with: agentic approve <path> | agentic reject <path>")
+        if state.status == "awaiting_plan_approval":
+            typer.echo("Plan gate — respond with: agentic approve <path> | agentic reject <path>")
+        else:
+            typer.echo("Respond with: agentic approve <path> | agentic reject <path>")
     if state.stop_reason:
         typer.echo(f"stop_reason: {state.stop_reason}")
 
@@ -75,8 +93,25 @@ def _print_workflow_status(state) -> None:
 @app.callback()
 def _root(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logging"),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help=(
+            "Path to TOML config (Anthropic credentials, model, etc.). "
+            "If omitted, searches AGENTIC_CONFIG, ./agentic.toml, ~/.agentic/config.toml"
+        ),
+        exists=False,
+        dir_okay=False,
+        readable=True,
+    ),
 ) -> None:
-    settings = get_settings()
+    try:
+        # Always refresh settings so --config / discovered agentic.toml apply.
+        settings = configure_from_cli(config_file=config)
+    except FileNotFoundError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
     level = "DEBUG" if verbose else settings.log_level
     configure_logging(level)
 
@@ -109,6 +144,30 @@ def init_cmd(
     typer.echo(f"Agentic metadata: {workspace.agentic_dir}")
 
 
+def _load_requirement_text(
+    *,
+    requirement: str | None,
+    requirement_file: Path | None,
+) -> str:
+    """Resolve inline requirement or multiline text from a file."""
+    if requirement and requirement_file:
+        raise WorkflowError("Pass either --requirement or --requirement-file, not both")
+    if requirement_file is not None:
+        path = requirement_file.expanduser()
+        if not path.is_file():
+            raise WorkflowError(f"Requirement file not found: {path}")
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise WorkflowError(f"Requirement file is empty: {path}")
+        return text
+    if requirement is not None:
+        text = requirement.strip()
+        if not text:
+            raise WorkflowError("Requirement must not be empty")
+        return text
+    raise WorkflowError("Internal error: no requirement source provided")
+
+
 @app.command("run")
 def run_cmd(
     project_path: str = typer.Argument(..., help="Target project path"),
@@ -117,6 +176,15 @@ def run_cmd(
         "--requirement",
         "-r",
         help="Natural-language requirement (starts a new workflow)",
+    ),
+    requirement_file: Optional[Path] = typer.Option(
+        None,
+        "--requirement-file",
+        "-R",
+        help="Path to a text/markdown file with the requirement (multiline OK)",
+        exists=False,
+        dir_okay=False,
+        readable=True,
     ),
     answer: Optional[list[str]] = typer.Option(
         None,
@@ -129,21 +197,30 @@ def run_cmd(
     workspace = _open_workspace(project_path)
     service = RequirementWorkflowService(workspace)
     try:
-        if requirement and answer:
-            raise WorkflowError("Pass either --requirement or --answer, not both")
-        if requirement:
-            state = service.start(requirement)
+        has_req = bool(requirement) or requirement_file is not None
+        if has_req and answer:
+            raise WorkflowError(
+                "Pass either a requirement (--requirement / --requirement-file) "
+                "or --answer, not both"
+            )
+        if has_req:
+            text = _load_requirement_text(
+                requirement=requirement,
+                requirement_file=requirement_file,
+            )
+            state = service.start(text)
         elif answer:
             state = service.provide_answers(list(answer))
         else:
             raise WorkflowError(
-                "Provide --requirement to start, or --answer to continue clarification"
+                "Provide --requirement or --requirement-file to start, "
+                "or --answer to continue clarification"
             )
     except WorkflowError as exc:
         _handle_workspace_errors(exc)
         return
 
-    _print_workflow_status(state)
+    _print_workflow_status(state, readable_root=service.readable_root())
 
 
 @app.command("status")
@@ -159,22 +236,29 @@ def status_cmd(
     typer.echo(
         f"active_specification_id: {config.active_specification_id or '(none)'}"
     )
+    typer.echo(f"active_plan_id: {config.active_plan_id or '(none)'}")
     if not config.active_workflow_id:
         typer.echo("phase: initialized (no active workflow)")
         return
+    service = RequirementWorkflowService(workspace)
     try:
-        state = RequirementWorkflowService(workspace).load_active()
+        state = service.load_active()
     except WorkflowError as exc:
         _handle_workspace_errors(exc)
         return
-    _print_workflow_status(state)
+    _print_workflow_status(state, readable_root=service.readable_root())
 
 
 @app.command("spec")
 def spec_cmd(
     project_path: str = typer.Argument(..., help="Target project path"),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print machine-readable JSON instead of Markdown",
+    ),
 ) -> None:
-    """Print the active specification JSON."""
+    """Print the active specification (Markdown by default)."""
     workspace = _open_workspace(project_path)
     service = RequirementWorkflowService(workspace)
     try:
@@ -185,7 +269,59 @@ def spec_cmd(
     if state.specification is None:
         typer.secho("No specification generated yet.", fg=typer.colors.YELLOW, err=True)
         raise typer.Exit(code=1)
+    if as_json:
+        typer.echo(json.dumps(state.specification.model_dump(mode="json"), indent=2))
+        return
+    md_path = service.readable_root() / "SPECIFICATION.md"
+    if md_path.is_file():
+        typer.echo(md_path.read_text(encoding="utf-8"))
+        return
+    # Fallback if readable file was not written (older workspaces).
     typer.echo(json.dumps(state.specification.model_dump(mode="json"), indent=2))
+
+
+@app.command("plan")
+def plan_cmd(
+    project_path: str = typer.Argument(..., help="Target project path"),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print machine-readable JSON instead of ASCII/Mermaid",
+    ),
+    generate: bool = typer.Option(
+        False,
+        "--generate",
+        "-g",
+        help="Force regeneration when the current status allows it",
+    ),
+) -> None:
+    """Generate or show the engineering task plan / dependency graph."""
+    workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
+    try:
+        state = service.plan_or_show(generate=generate)
+        plan = state.plan
+        if plan is None:
+            plan = service.get_plan()
+    except WorkflowError as exc:
+        _handle_workspace_errors(exc)
+        return
+
+    _print_workflow_status(state, readable_root=service.readable_root())
+    typer.echo("")
+    if as_json:
+        typer.echo(json.dumps(plan.model_dump(mode="json"), indent=2))
+        return
+    md_path = service.readable_root() / "PLAN.md"
+    if md_path.is_file() and state.status in (
+        "awaiting_plan_approval",
+        "plan_approved",
+        "plan_rejected",
+        "stopped",
+    ):
+        # Prefer live ASCII/Mermaid display for operators; Markdown stays on disk.
+        pass
+    typer.echo(service.format_plan_display(plan))
 
 
 @app.command("approve")
@@ -193,15 +329,25 @@ def approve_cmd(
     project_path: str = typer.Argument(..., help="Target project path"),
     comment: Optional[str] = typer.Option(None, "--comment", "-c"),
 ) -> None:
-    """Approve the pending specification (human decision)."""
+    """Approve the pending specification or plan (human decision)."""
     workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
     try:
-        state = RequirementWorkflowService(workspace).approve(comment=comment)
+        before = service.load_active()
+        state = service.approve(comment=comment)
     except WorkflowError as exc:
         _handle_workspace_errors(exc)
         return
-    typer.secho("Specification approved.", fg=typer.colors.GREEN)
-    _print_workflow_status(state)
+    if before.status == "awaiting_plan_approval":
+        typer.secho("Plan approved.", fg=typer.colors.GREEN)
+    elif state.status == "awaiting_plan_approval":
+        typer.secho(
+            "Specification approved; plan generated — awaiting plan approval.",
+            fg=typer.colors.GREEN,
+        )
+    else:
+        typer.secho("Specification approved.", fg=typer.colors.GREEN)
+    _print_workflow_status(state, readable_root=service.readable_root())
 
 
 @app.command("reject")
@@ -214,17 +360,18 @@ def reject_cmd(
         help="Record as changes_requested instead of rejected",
     ),
 ) -> None:
-    """Reject the pending specification (human decision)."""
+    """Reject the pending specification or plan (human decision)."""
     workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
     try:
-        state = RequirementWorkflowService(workspace).reject(
-            comment=comment, changes_requested=changes
-        )
+        before = service.load_active()
+        state = service.reject(comment=comment, changes_requested=changes)
     except WorkflowError as exc:
         _handle_workspace_errors(exc)
         return
-    typer.secho("Specification decision recorded.", fg=typer.colors.YELLOW)
-    _print_workflow_status(state)
+    label = "Plan" if before.status == "awaiting_plan_approval" else "Specification"
+    typer.secho(f"{label} decision recorded.", fg=typer.colors.YELLOW)
+    _print_workflow_status(state, readable_root=service.readable_root())
 
 
 def run(argv: Optional[list[str]] = None) -> None:

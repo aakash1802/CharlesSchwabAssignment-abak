@@ -107,8 +107,10 @@ class Workspace:
             "workflows",
             "artifacts",
             "reports",
+            "readable",
+            "readable/phases",
         ):
-            (self.agentic_dir / name).mkdir(exist_ok=True)
+            (self.agentic_dir / name).mkdir(parents=True, exist_ok=True)
 
         store = JsonStore(self.agentic_dir)
         if self.config_path.exists():

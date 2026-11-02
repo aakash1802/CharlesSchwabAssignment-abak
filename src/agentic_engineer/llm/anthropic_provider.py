@@ -20,7 +20,7 @@ class AnthropicProvider:
         self,
         *,
         api_key: str,
-        model: str = "claude-sonnet-4-5",
+        model: str = "claude-sonnet-5-5",
         timeout_seconds: float = 60.0,
         max_tokens: int = 4096,
         client: Any | None = None,

@@ -33,10 +33,18 @@ def test_ambiguous_path_then_answers_then_approve(tmp_path: Path) -> None:
     assert state.specification is not None
     assert state.pending_approval_id
     assert (ws.agentic_dir / "specifications" / f"{state.specification_id}.json").is_file()
+    assert (ws.agentic_dir / "specifications" / f"{state.specification_id}.md").is_file()
+    assert (ws.agentic_dir / "readable" / "ANALYSIS.md").is_file()
+    assert (ws.agentic_dir / "readable" / "SPECIFICATION.md").is_file()
+    assert (ws.agentic_dir / "readable" / "phases" / "02_clarification.md").is_file()
 
     approved = service.approve(comment="LGTM")
-    assert approved.status == "spec_approved"
-    assert approved.pending_approval_id is None
+    assert approved.status == "awaiting_plan_approval"
+    assert approved.plan is not None
+    assert approved.pending_approval_id is not None
+    assert (ws.agentic_dir / "readable" / "phases" / "04_approval.md").is_file()
+    assert (ws.agentic_dir / "readable" / "PLAN.md").is_file()
+    assert (ws.agentic_dir / "readable" / "phases" / "05_plan.md").is_file()
 
 
 def test_clear_requirement_goes_to_approval(tmp_path: Path) -> None:

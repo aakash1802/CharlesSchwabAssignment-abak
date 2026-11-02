@@ -15,6 +15,9 @@ htmlcov/
 .venv/
 .env
 .env.*
+agentic.toml
+agentic.config.toml
+config.toml
 
 # IDE
 .idea/

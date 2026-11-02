@@ -4,7 +4,7 @@ Normative brief for the **Agentic Engineer** prototype. Statements below superse
 
 ## Status
 
-Captured from the Master Build Prompt (Phase 0), with demo-target application details **deferred** per lead direction. Architecture approved. **Current delivery boundary: Phase 2** (requirement → spec → human approval). Phases 3+ are planned but deferred until the lead resumes them — see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Captured from the Master Build Prompt (Phase 0), with demo-target application details **deferred** per lead direction. Architecture approved. **Current delivery boundary: Phase 3** (approved spec → task plan → dependency validation → plan approval). Phases 4+ are planned but deferred until the lead resumes them — see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Problem statement
 
@@ -28,6 +28,7 @@ The CLI is the product. Concrete demonstration target applications will be defin
 | R10 | All target file operations go through a Workspace abstraction with isolation and path safety. |
 | R11 | Project-specific workflow state lives under the target’s `.agentic/`; global CLI config holds credentials/defaults only. |
 | R12 | The CLI must be capable of greenfield, brownfield, and ambiguous-requirement workflows; concrete demo apps for those modes are deferred. |
+| R13 | The CLI must write human-readable Markdown artifacts for review (at least specification and plan when those phases exist) and a human-readable summary after each completed workflow phase, in addition to machine-readable JSON under `.agentic/`. |
 
 ## Users and context
 
@@ -36,7 +37,7 @@ The CLI is the product. Concrete demonstration target applications will be defin
 | Who uses the result? | A technical reviewer / human operator of the CLI (R2, R8). |
 | What job does it do? | Drive an engineering workflow on a target project from requirement to reportable outcome (R2–R8). |
 | What inputs does it receive? | A target project path and a natural-language requirement string (and later approval decisions) (R2). |
-| What outputs must it produce? | Spec, plan/graph, code/test/doc changes in the target, approvals history, audit trail, metrics (where data exists), final report (R2, R7, R8). |
+| What outputs must it produce? | Spec, plan/graph, code/test/doc changes in the target, approvals history, audit trail, metrics (where data exists), final report, plus human-readable Markdown copies/summaries for reviewer inspection (R2, R7, R8, R13). |
 
 ## In scope
 
@@ -46,6 +47,7 @@ The CLI is the product. Concrete demonstration target applications will be defin
 - Task planning, dependency validation, LangGraph execution (R3, R5, R6).
 - Developer/testing/failure-analysis loop with bounded retries (R7, R8).
 - Audit events, derived metrics, final report (R8).
+- Human-readable Markdown artifacts for spec/plan (and later phases) plus a phase summary after each completed workflow phase (R13).
 
 ## Out of scope (now)
 
@@ -68,7 +70,8 @@ The CLI is the product. Concrete demonstration target applications will be defin
 
 ## Acceptance criteria
 
-- [ ] AC1. Given a target path and requirement, when the CLI runs to a terminal state, then a reviewer can inspect a coherent engineering outcome (spec/plan/changes/report as applicable) (R1, R2).
+- [ ] AC1. Given a target path and requirement, when the CLI runs to a terminal state, then a reviewer can inspect a coherent engineering outcome (spec/plan/changes/report as applicable) without needing to parse JSON alone (R1, R2, R13).
+- [ ] AC1b. After each completed workflow phase, a human-readable Markdown summary exists under the target `.agentic/` tree; when a specification or plan is produced, a Markdown form of that artifact is also written (R13).
 - [ ] AC2. The outcome records how the requirement was understood, including ambiguities or clarifications when present (R4).
 - [ ] AC3. The outcome includes a task decomposition with explicit dependencies (R5).
 - [ ] AC4. Execution shows multiple steps and respects dependencies; independent tasks may run in parallel (R6).
@@ -80,7 +83,8 @@ The CLI is the product. Concrete demonstration target applications will be defin
 ## Assumptions
 
 - Input requirement is plain text via CLI flag (R2).
-- “Reviewable” includes artifacts under `.agentic/` plus `agentic report` (R2, R8).
+- “Reviewable” includes JSON under `.agentic/`, human-readable Markdown under `.agentic/readable/`, plus `agentic report` when available (R2, R8, R13).
+- Phase summaries are Markdown snapshots of that phase’s outcome (analysis, clarification, specification, approval, and later plan/execution/report phases) (R13).
 - Default max automatic retries per task is 2 unless configuration overrides (R8).
 - Fixture/temp targets are sufficient until demo apps are defined (R12).
 

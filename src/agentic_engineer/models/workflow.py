@@ -1,4 +1,4 @@
-"""Persisted requirement-workflow state (Phase 2)."""
+"""Persisted requirement-workflow state (Phases 2–3)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from agentic_engineer.models.approval import WorkflowStatus
 from agentic_engineer.models.common import utc_now
+from agentic_engineer.models.plan import EngineeringPlan
 from agentic_engineer.models.requirements import ClarificationAnswer, RequirementAnalysis
 from agentic_engineer.models.specification import Specification
 
@@ -21,6 +22,8 @@ class RequirementWorkflowState(BaseModel):
     clarification_answers: list[ClarificationAnswer] = Field(default_factory=list)
     specification_id: str | None = None
     specification: Specification | None = None
+    plan_id: str | None = None
+    plan: EngineeringPlan | None = None
     pending_approval_id: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

@@ -44,5 +44,9 @@ WorkflowStatus = Literal[
     "awaiting_spec_approval",
     "spec_approved",
     "spec_rejected",
+    "planning",
+    "awaiting_plan_approval",
+    "plan_approved",
+    "plan_rejected",
     "stopped",
 ]

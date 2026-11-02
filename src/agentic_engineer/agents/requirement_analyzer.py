@@ -10,8 +10,10 @@ from agentic_engineer.llm.base import LLMError, LLMProvider, LLMRequest
 from agentic_engineer.llm.mock import MockProvider
 from agentic_engineer.models.requirements import ClarificationQuestion, RequirementAnalysis
 
+# Intent verbs/fillers that usually mean the ask is underspecified.
+# Do not match nouns like "security" — detailed specs often list them as NFR areas.
 _VAGUE = re.compile(
-    r"\b(improve|better|enhance|secure|security|optimize|make\s+it|something|somehow)\b",
+    r"\b(improve|better|enhance|optimize|make\s+it|something|somehow)\b",
     re.IGNORECASE,
 )
 
@@ -21,7 +23,9 @@ def deterministic_analyze(requirement: str) -> RequirementAnalysis:
     text = requirement.strip()
     vague_hits = _VAGUE.findall(text)
     short = len(text) < 48
-    ambiguous = bool(vague_hits) or short
+    # Vague wording only forces clarification when the ask is also short/thin;
+    # long structured specs may mention "improve X" without being actionable gaps.
+    ambiguous = short or (bool(vague_hits) and len(text) < 160)
 
     questions: list[ClarificationQuestion] = []
     ambiguities: list[str] = []

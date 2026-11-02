@@ -249,6 +249,12 @@ Do **not** build a second DAG runner. The task dependency graph is **data**; Pyt
     config.json
     specifications/spec_<id>.json
     plans/plan_<id>.json
+    readable/                    # human-readable Markdown for reviewers (R13)
+      ANALYSIS.md                # latest requirement analysis
+      SPECIFICATION.md           # latest specification
+      PLAN.md                    # latest plan (Phase 3+)
+      phases/                    # one summary after each completed phase
+        <nn>_<phase>.md
     workflows/workflow_<id>/
       state.json                 # app-level mirror / summary
       task_graph.json
@@ -260,6 +266,8 @@ Do **not** build a second DAG runner. The task dependency graph is **data**; Pyt
     artifacts/
     reports/
 ```
+
+Machine-readable JSON remains the source of truth for automation. Markdown under `readable/` is a derived reviewer view written after each completed phase and whenever a spec/plan artifact is saved.
 
 Global CLI config (env + user config file) holds provider credentials and default models only — **no** target workflow state.
 
