@@ -80,6 +80,31 @@ class Settings(BaseSettings):
         ge=0,
         description="Tighter auto-retry cap for structured-output / truncation failures",
     )
+    max_same_retries: int = Field(
+        default=2,
+        ge=0,
+        description="Recovery budget: RETRY_SAME attempts per task",
+    )
+    max_corrected_retries: int = Field(
+        default=2,
+        ge=0,
+        description="Recovery budget: RETRY_CORRECTED attempts per task",
+    )
+    max_scope_reductions: int = Field(
+        default=2,
+        ge=0,
+        description="Recovery budget: REDUCE_SCOPE attempts per task",
+    )
+    max_replans: int = Field(
+        default=1,
+        ge=0,
+        description="Recovery budget: REPLAN attempts per task",
+    )
+    max_total_recovery_attempts: int = Field(
+        default=5,
+        ge=0,
+        description="Recovery budget: total automatic recovery attempts per task",
+    )
     developer_max_files_per_batch: int = Field(
         default=5,
         ge=1,

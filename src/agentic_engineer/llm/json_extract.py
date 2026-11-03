@@ -11,12 +11,15 @@ _FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 
 def describe_json_error(exc: BaseException) -> str:
-    """Human-readable reason when model output fails JSON parsing."""
+    """Human-readable reason when model output fails JSON parsing.
+
+    Avoid words like "truncated"/"unclosed" here — recovery classification
+    matches those and would mis-label ordinary JSON errors as OUTPUT_TRUNCATED.
+    """
     if isinstance(exc, json.JSONDecodeError):
         return (
             f"LLM returned invalid JSON ({exc.msg} at line {exc.lineno} "
-            f"column {exc.colno}). The response was likely truncated or a "
-            "generated file string was left unclosed."
+            f"column {exc.colno})."
         )
     return str(exc)
 

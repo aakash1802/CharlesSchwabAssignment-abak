@@ -25,6 +25,10 @@ class ExecutionGraphState(TypedDict, total=False):
     next_phase_index: int
     last_failure: dict[str, Any] | None
     failure_recommendation: str | None
+    recovery_strategy: str | None
+    recovery_decision: dict[str, Any] | None
+    recovery_history: list[dict[str, Any]]
+    human_intervention: dict[str, Any] | None
     force_fail_task_ids: list[str]
     force_destructive_task_ids: list[str]
     force_replan_task_ids: list[str]

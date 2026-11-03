@@ -111,8 +111,12 @@ class ReportBuilder:
             f"  task_finishes: {metrics.task_finishes}",
             f"  task_failures: {metrics.task_failures}",
             f"  retries: {metrics.retries}",
-            f"  commands_executed: {metrics.commands_executed}",
+            f"  same_operation_retries: {metrics.same_operation_retries}",
+            f"  corrected_retries: {metrics.corrected_retries}",
+            f"  scope_reductions: {metrics.scope_reductions}",
             f"  replans: {metrics.replans}",
+            f"  escalations: {metrics.escalations}",
+            f"  recovery_decisions: {metrics.recovery_decisions}",
             f"  safe_stops: {metrics.safe_stops}",
             f"  completed_flag: {metrics.completed}",
         ]
@@ -199,6 +203,35 @@ class ReportBuilder:
                     f"- `{appr.get('id')}` {appr.get('approval_type')} → "
                     f"**{appr.get('decision')}** — {appr.get('requested_action')}"
                 )
+        recovery_events = [
+            e
+            for e in doc.events
+            if e.get("event_type")
+            in {
+                "recovery_decision",
+                "retry",
+                "scope_reduced",
+                "replan",
+                "escalation",
+                "fail_analyzed",
+            }
+        ]
+        lines.extend(["", "## Recovery", ""])
+        if not recovery_events:
+            lines.append("_No recovery events_")
+        else:
+            for event in recovery_events[-30:]:
+                details = event.get("details") or {}
+                strategy = details.get("strategy") or ""
+                category = details.get("failure_category") or ""
+                extra = ""
+                if strategy or category:
+                    extra = f" (strategy={strategy or '—'}, category={category or '—'})"
+                lines.append(
+                    f"- `{event.get('event_type')}`{extra} "
+                    f"{event.get('message') or ''}".rstrip()
+                )
+
         lines.extend(["", "## Metrics", "", "```json"])
         lines.append(json.dumps(doc.metrics, indent=2))
         lines.extend(["```", "", "## Recent events", ""])

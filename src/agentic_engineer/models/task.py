@@ -34,5 +34,6 @@ class Task(BaseModel):
     input_refs: list[str] = Field(default_factory=list)
     output_refs: list[str] = Field(default_factory=list)
     error: str | None = None
+    recovery_feedback: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

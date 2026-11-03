@@ -32,7 +32,7 @@ class CodegenContext:
         spec_dump: dict[str, object] | None = None
         if self.specification is not None:
             spec_dump = self.specification.model_dump(mode="json")
-        return {
+        payload: dict[str, object] = {
             "task": {
                 "id": self.task.id,
                 "name": self.task.name,
@@ -46,6 +46,9 @@ class CodegenContext:
             "workspace_inspect": self.inspect or {},
             "existing_files": self.file_previews or {},
         }
+        if getattr(self.task, "recovery_feedback", None):
+            payload["prior_attempt_feedback"] = self.task.recovery_feedback
+        return payload
 
     def to_prompt_json(self) -> str:
         return json.dumps(self.to_prompt_payload(), indent=2)

@@ -223,6 +223,7 @@ class DeveloperAgent:
                                 in {
                                     FailureCategory.INVALID_STRUCTURED_OUTPUT,
                                     FailureCategory.TRUNCATED_RESPONSE,
+                                    FailureCategory.OUTPUT_TRUNCATED,
                                 }
                                 else "n/a"
                             ),
@@ -232,7 +233,9 @@ class DeveloperAgent:
                                 in {
                                     FailureCategory.SCHEMA_VALIDATION,
                                     FailureCategory.WORKSPACE_SAFETY,
+                                    FailureCategory.WORKSPACE_VIOLATION,
                                     FailureCategory.INVALID_FILE_OPERATION,
+                                    FailureCategory.PERMISSION_FAILURE,
                                 }
                                 else "n/a"
                             ),
@@ -250,7 +253,10 @@ class DeveloperAgent:
                             raise last_error.with_prefix(
                                 f"Developer agent failed for {task.id} ({task.name})"
                             ) from exc
-                        if exc.category == FailureCategory.TRUNCATED_RESPONSE:
+                        if exc.category in {
+                            FailureCategory.TRUNCATED_RESPONSE,
+                            FailureCategory.OUTPUT_TRUNCATED,
+                        }:
                             # Reduce scope instead of repeating the same oversized call.
                             batch_size = max(1, batch_size // 2)
                             max_tokens = min(max_tokens, max(2048, max_tokens))
@@ -374,10 +380,13 @@ class DeveloperAgent:
         high_signal = {
             FailureCategory.INVALID_STRUCTURED_OUTPUT,
             FailureCategory.TRUNCATED_RESPONSE,
+            FailureCategory.OUTPUT_TRUNCATED,
             FailureCategory.TRANSIENT_PROVIDER,
             FailureCategory.RATE_LIMIT,
             FailureCategory.WORKSPACE_SAFETY,
+            FailureCategory.WORKSPACE_VIOLATION,
             FailureCategory.INVALID_FILE_OPERATION,
+            FailureCategory.PERMISSION_FAILURE,
         }
         if (
             previous.category in high_signal
@@ -392,11 +401,16 @@ class DeveloperAgent:
     ) -> str:
         if exc.category in {
             FailureCategory.WORKSPACE_SAFETY,
+            FailureCategory.WORKSPACE_VIOLATION,
             FailureCategory.INVALID_FILE_OPERATION,
+            FailureCategory.PERMISSION_FAILURE,
         }:
             return "stop"
         if regen + 1 >= structured_attempts:
             return "escalate"
-        if exc.category == FailureCategory.TRUNCATED_RESPONSE:
+        if exc.category in {
+            FailureCategory.TRUNCATED_RESPONSE,
+            FailureCategory.OUTPUT_TRUNCATED,
+        }:
             return "reduce_scope_and_retry"
         return "regenerate"

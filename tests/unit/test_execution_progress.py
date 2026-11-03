@@ -39,4 +39,6 @@ def test_describe_json_error_explains_unterminated_string() -> None:
         text = describe_json_error(exc)
     assert "invalid JSON" in text
     assert "Unterminated string" in text or "unterminated" in text.lower()
-    assert "truncated" in text.lower() or "unclosed" in text.lower()
+    # Must not inject "truncated"/"unclosed" — those poison failure classification.
+    assert "truncated" not in text.lower()
+    assert "unclosed" not in text.lower()

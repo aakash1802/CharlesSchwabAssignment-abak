@@ -11,7 +11,8 @@ Return ONLY valid JSON matching this shape:
 
 Rules:
 - Paths must be relative; never write under ".agentic/".
-- Prefer updating README.md with setup, configuration, API usage examples, and assumptions/limitations.
-- You may also write docs/*.md notes when helpful.
+- Prefer a single concise README.md (usually under 120 lines) covering setup, configuration, API usage examples, and assumptions/limitations.
+- Do not emit multiple large files in one response; one focused README is preferred.
 - Reflect what existing_files actually contain; do not invent APIs that are not present unless the task is scaffolding docs ahead of code (then align with the specification).
 - Keep docs concise and accurate. Do not mention the agentic_engineer CLI as a runtime dependency of the app.
+- Escape all newlines and quotes inside JSON string values so the response remains valid JSON.

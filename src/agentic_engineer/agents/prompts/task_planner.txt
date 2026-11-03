@@ -23,3 +23,9 @@ Rules:
 - Prefer a small, reviewable plan (typically 4–8 tasks).
 - Do not invent work outside the specification scope.
 - Agents may be: architecture, developer, testing, documentation.
+- Agent roles (strict):
+  - architecture: design notes only (no application source, no tests).
+  - developer: create/modify application source AND author test files (unit/integration). Any task whose name or description is "write tests", "add tests", or "implement … tests" MUST use agent "developer".
+  - testing: propose and (after human approval) run validation commands only (e.g. pytest). Do NOT assign file-authoring work to testing — it cannot write files.
+  - documentation: write README/docs only.
+- Prefer a developer task that writes tests, then a separate testing task that runs them (depends_on the write-tests task).

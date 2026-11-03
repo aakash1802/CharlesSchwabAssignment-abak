@@ -14,16 +14,34 @@ from agentic_engineer.agents.documentation_agent import DocumentationAgent
 from agentic_engineer.agents.failure_analysis_agent import FailureAnalysisAgent
 from agentic_engineer.agents.testing_agent import TestingAgent
 from agentic_engineer.config.settings import get_settings
+from pathlib import Path
+
 from agentic_engineer.execution.commands import CommandRunner
 from agentic_engineer.execution.events import ExecutionEventLog
+from agentic_engineer.execution.recovery_engine import (
+    RecoveryDecisionEngine,
+    decision_audit_details,
+)
+from agentic_engineer.execution.recovery_policy import escalate_decision
+from agentic_engineer.execution.recovery_store import RecoveryHistoryStore
 from agentic_engineer.execution.replan import apply_material_plan_patch
+from agentic_engineer.execution.scope_reduce import (
+    apply_scope_reduction,
+    lineage_depth,
+    lineage_task_ids,
+)
 from agentic_engineer.graph.dependency import ready_tasks
 from agentic_engineer.graph.state import ExecutionGraphState
 from agentic_engineer.llm.base import LLMProvider
-from agentic_engineer.llm.failures import ClassifiedLLMError, format_classified_message
+from agentic_engineer.llm.failures import (
+    ClassifiedLLMError,
+    classify_command_evidence,
+    format_classified_message,
+)
 from agentic_engineer.agents.codegen_context import build_codegen_context
 from agentic_engineer.models.common import utc_now
 from agentic_engineer.models.plan import EngineeringPlan
+from agentic_engineer.models.recovery import RecoveryAttempt, RecoveryStrategy
 from agentic_engineer.models.specification import Specification
 from agentic_engineer.models.task import Task
 from agentic_engineer.persistence.readable_store import ReadableArtifactStore
@@ -38,12 +56,14 @@ class ExecutionContext:
     events: ExecutionEventLog
     readable: ReadableArtifactStore
     specification: Specification | None = None
+    workflow_dir: Path | None = None
     runner: CommandRunner = field(init=False)
     architecture: ArchitectureAgent = field(init=False)
     developer: DeveloperAgent = field(init=False)
     testing: TestingAgent = field(init=False)
     failure: FailureAnalysisAgent = field(init=False)
     docs: DocumentationAgent = field(init=False)
+    recovery: RecoveryDecisionEngine = field(init=False)
 
     def __post_init__(self) -> None:
         self.runner = CommandRunner(self.workspace)
@@ -52,6 +72,12 @@ class ExecutionContext:
         self.testing = TestingAgent(self.provider, self.runner)
         self.failure = FailureAnalysisAgent(self.provider)
         self.docs = DocumentationAgent(self.provider)
+        self.recovery = RecoveryDecisionEngine(self.provider)
+
+    def recovery_store(self) -> RecoveryHistoryStore | None:
+        if self.workflow_dir is None:
+            return None
+        return RecoveryHistoryStore(self.workflow_dir)
 
     def codegen_ctx(self, task: Task, *, design_note: str = ""):
         return build_codegen_context(
@@ -372,12 +398,27 @@ def make_execute_node(ctx: ExecutionContext) -> Callable[[ExecutionGraphState], 
                     f"- Passed: `{evidence.passed}`\n\n"
                     "## stdout\n\n```\n"
                     f"{evidence.stdout or '(empty)'}\n"
+                    "```\n\n"
+                    "## stderr\n\n```\n"
+                    f"{evidence.stderr or '(empty)'}\n"
                     "```\n"
                 )
                 next_idx = _write_phase(ctx, state, "test", body)
                 if not evidence.passed:
+                    category = classify_command_evidence(
+                        exit_code=evidence.exit_code,
+                        stdout=evidence.stdout or "",
+                        stderr=evidence.stderr or "",
+                        timed_out=evidence.timed_out,
+                    )
+                    snippet = (evidence.stderr or evidence.stdout or "").strip()
+                    if len(snippet) > 1500:
+                        snippet = snippet[:1480] + "\n...[truncated]..."
+                    error_body = f"Command failed exit={evidence.exit_code}"
+                    if snippet:
+                        error_body = f"{error_body}\n{snippet}"
                     task.status = "failed"
-                    task.error = f"Command failed exit={evidence.exit_code}"
+                    task.error = format_classified_message(error_body, category)
                     return {
                         "tasks": _dump_tasks(tasks),
                         "cohort_queue": queue,
@@ -388,6 +429,7 @@ def make_execute_node(ctx: ExecutionContext) -> Callable[[ExecutionGraphState], 
                         "last_failure": {
                             "task_id": task.id,
                             "error": task.error,
+                            "failure_category": category.value,
                         },
                         "phase": "execute",
                         "written_paths": written,
@@ -520,6 +562,25 @@ def make_sync_node(ctx: ExecutionContext) -> Callable[[ExecutionGraphState], dic
     return sync_node
 
 
+def _load_recovery_attempts(
+    ctx: ExecutionContext, state: ExecutionGraphState, workflow_id: str
+) -> list[RecoveryAttempt]:
+    attempts: list[RecoveryAttempt] = []
+    for raw in state.get("recovery_history") or []:
+        try:
+            attempts.append(RecoveryAttempt.model_validate(raw))
+        except Exception:  # noqa: BLE001
+            continue
+    store = ctx.recovery_store()
+    if store is not None:
+        persisted = store.load(workflow_id).attempts
+        by_id = {a.recovery_id: a for a in attempts}
+        for item in persisted:
+            by_id.setdefault(item.recovery_id, item)
+        attempts = list(by_id.values())
+    return attempts
+
+
 def make_fail_analyze_node(
     ctx: ExecutionContext,
 ) -> Callable[[ExecutionGraphState], dict]:
@@ -529,6 +590,7 @@ def make_fail_analyze_node(
         error = str(last.get("error") or "unknown")
         tasks = _tasks_from_state(state)
         by_id = {t.id: t for t in tasks}
+        workflow_id = str(state.get("workflow_id") or ctx.plan.workflow_id)
         if not task_id or task_id not in by_id:
             body = f"# Failure analysis\n\nMissing failure context: {last}\n"
             next_idx = _write_phase(ctx, state, "fail_analyze", body)
@@ -543,75 +605,233 @@ def make_fail_analyze_node(
         cap = get_settings().max_task_retries
         prefer_replan = task_id in (state.get("force_replan_task_ids") or [])
         failure_category = last.get("failure_category")
-        # Enforce settings cap regardless of per-task max_retries from LLM.
+
+        # Mark prior pending recovery for this task as failed (new failure evidence).
+        prior = _load_recovery_attempts(ctx, state, workflow_id)
+        lineage = set(lineage_task_ids(task.id))
+        for attempt in prior:
+            # Scope-reduced parents leave pending reduce_scope rows; mark the
+            # whole lineage so budgets and ladders see completed attempts.
+            if attempt.task_id in lineage and attempt.outcome == "pending":
+                attempt.outcome = "failed"
+
+        # Count recovery across scope-reduction lineage so nested `_sN` tasks
+        # cannot reset max_scope_reductions forever.
+        lineage_history = [a for a in prior if a.task_id in lineage]
+
+        complex_categories = {
+            "implementation",
+            "implementation_error",
+            "test_failure",
+            "unknown",
+        }
+        consult = str(failure_category or "").lower() in complex_categories or (
+            failure_category is None
+        )
         result = ctx.failure.analyze(
             task=task,
             error=error,
             max_retries=cap,
             prefer_replan=prefer_replan,
             failure_category=failure_category,
+            history=lineage_history,
+            consult_llm=consult,
         )
-        category_value = (
-            result.failure_category.value if result.failure_category else None
+        decision = result.decision or ctx.recovery.decide(
+            task=task,
+            error=error,
+            history=lineage_history,
+            failure_category=failure_category,
+            prefer_replan=prefer_replan,
+            max_retries=cap,
         )
+        # Hard cap nesting depth even if category policy still picks reduce_scope.
+        budgets = ctx.recovery.budgets()
+        if (
+            decision.strategy == RecoveryStrategy.REDUCE_SCOPE
+            and lineage_depth(task.id) >= budgets.max_scope_reductions
+        ):
+            decision = escalate_decision(
+                category=decision.failure_category,
+                explanation=error,
+                evidence=list(decision.evidence)
+                + [
+                    f"scope lineage depth={lineage_depth(task.id)} "
+                    f">= max_scope_reductions={budgets.max_scope_reductions}"
+                ],
+                rationale=(
+                    f"Scope-reduction lineage depth exhausted "
+                    f"({lineage_depth(task.id)}/"
+                    f"{budgets.max_scope_reductions}); escalate."
+                ),
+            )
+        strategy = decision.strategy
+        category_value = decision.failure_category.value
+        attempt = ctx.recovery.build_attempt(
+            workflow_id=workflow_id,
+            task=task,
+            decision=decision,
+            history=lineage_history,
+        )
+        # Carry forward marked-failed prior attempts into checkpointed history.
+        history_raw = [
+            a.model_dump(mode="json")
+            for a in prior
+            if a.task_id != task.id or a.outcome != "pending"
+        ]
+        history_raw.append(attempt.model_dump(mode="json"))
+        store = ctx.recovery_store()
+        if store is not None:
+            from agentic_engineer.models.recovery import RecoveryHistory
+
+            hist = RecoveryHistory(workflow_id=workflow_id, attempts=[])
+            for raw in history_raw:
+                hist.attempts.append(RecoveryAttempt.model_validate(raw))
+            store.save(hist)
+
         body = (
-            "# Failure analysis\n\n"
+            "# Failure analysis / recovery decision\n\n"
             f"- Task: `{task.id}`\n"
             f"- Error: {error}\n"
-            f"- Category: `{category_value or 'unknown'}`\n"
+            f"- Category: `{category_value}`\n"
+            f"- Strategy: `{strategy.value}`\n"
             f"- Retry count: `{task.retry_count}`\n"
             f"- Cap: `{cap}`\n"
             f"- Recommendation: `{result.recommendation}`\n"
-            f"- Reason: {result.reason}\n"
+            f"- Corrective action: {decision.proposed_corrective_action}\n"
+            f"- Inputs change: `{decision.inputs_must_change}`\n"
+            f"- Scope change: `{decision.scope_changes}`\n"
+            f"- Graph change: `{decision.dependency_graph_changes}`\n"
+            f"- Human approval required: `{decision.human_approval_required}`\n"
+            f"- Reason: {decision.rationale}\n"
             f"- Prefer replan: `{prefer_replan}`\n"
         )
         next_idx = _write_phase(ctx, state, "fail_analyze", body)
+        audit = decision_audit_details(decision)
+        audit["recovery_id"] = attempt.recovery_id
+        audit["attempt_number"] = attempt.attempt_number
+        ctx.events.append(
+            "recovery_decision",
+            message=(
+                f"Recovery for {task.id}: {strategy.value} — {decision.rationale}"
+            ),
+            task_id=task.id,
+            details=audit,
+        )
         ctx.events.append(
             "fail_analyzed",
             message=(
-                f"Failure analysis for {task.id}: recommend {result.recommendation} — "
-                f"{result.reason}"
+                f"Failure analysis for {task.id}: recommend {result.recommendation} "
+                f"(strategy={strategy.value}) — {result.reason}"
             ),
             task_id=task.id,
             details={
                 "recommendation": result.recommendation,
+                "strategy": strategy.value,
                 "failure_category": category_value,
             },
         )
 
-        if result.recommendation == "retry" and task.retry_count < cap:
+        base = {
+            "recovery_history": history_raw,
+            "recovery_strategy": strategy.value,
+            "recovery_decision": decision.model_dump(mode="json"),
+            "last_failure": None,
+            "cohort_queue": [],
+            "current_cohort": [],
+            "next_phase_index": next_idx,
+            "phase": "fail_analyze",
+            "safe_stopped": False,
+        }
+
+        if strategy in {
+            RecoveryStrategy.RETRY_SAME,
+            RecoveryStrategy.RETRY_CORRECTED,
+        }:
             task.retry_count += 1
             task.status = "pending"
             task.error = None
             task.updated_at = utc_now()
+            if strategy == RecoveryStrategy.RETRY_CORRECTED:
+                task.recovery_feedback = ctx.recovery.corrective_feedback(decision)
+            else:
+                task.recovery_feedback = None
             ctx.events.append(
                 "retry",
                 message=(
                     f"Retrying {task.id} “{task.name}” "
-                    f"(attempt {task.retry_count}/{cap}) after: {error}"
+                    f"({strategy.value}, attempt {task.retry_count}/{cap}) after: {error}"
                 ),
                 task_id=task.id,
+                details={"strategy": strategy.value},
             )
             return {
+                **base,
                 "tasks": _dump_tasks(tasks),
                 "failure_recommendation": "retry",
-                "last_failure": None,
-                "cohort_queue": [],
-                "current_cohort": [],
-                "next_phase_index": next_idx,
-                "phase": "fail_analyze",
-                "safe_stopped": False,
             }
 
-        if result.recommendation == "replan":
+        if strategy == RecoveryStrategy.REDUCE_SCOPE:
+            patched, summary = apply_scope_reduction(
+                tasks,
+                failed_task_id=task.id,
+                note=decision.proposed_corrective_action,
+            )
+            if not summary.get("applied"):
+                task.status = "failed"
+                attempt.outcome = "escalated"
+                intervention = {
+                    "task_id": task.id,
+                    "reason": "Scope reduction produced an invalid dependency graph",
+                    "summary": summary,
+                    "decision": decision.model_dump(mode="json"),
+                }
+                ctx.events.append(
+                    "escalation",
+                    message=intervention["reason"],
+                    task_id=task.id,
+                    details=intervention,
+                )
+                return {
+                    **base,
+                    "tasks": _dump_tasks(tasks),
+                    "failure_recommendation": "stop",
+                    "recovery_strategy": RecoveryStrategy.ESCALATE.value,
+                    "human_intervention": intervention,
+                    "safe_stopped": True,
+                    "stop_reason": intervention["reason"],
+                }
+            attempt.outcome = "pending"
+            attempt.scope_changed = True
+            attempt.dependency_graph_changed = True
+            ctx.events.append(
+                "scope_reduced",
+                message=(
+                    f"Reduced scope for {task.id}: created "
+                    f"{', '.join(summary.get('created_task_ids') or [])}"
+                ),
+                task_id=task.id,
+                details=summary,
+            )
+            # Sync plan tasks for downstream agents.
+            ctx.plan.tasks = patched
+            return {
+                **base,
+                "tasks": _dump_tasks(patched),
+                "failure_recommendation": "retry",
+                "plan_patch": summary,
+            }
+
+        if strategy == RecoveryStrategy.REPLAN:
             patched, summary = apply_material_plan_patch(
                 tasks,
                 failed_task_id=task.id,
-                note=str(result.plan_patch.get("note") or result.reason),
+                note=str(result.plan_patch.get("note") or decision.rationale),
             )
+            attempt.outcome = "awaiting_approval"
             ctx.events.append(
                 "replan",
-                message=result.reason,
+                message=decision.rationale,
                 task_id=task.id,
                 details=summary,
             )
@@ -623,28 +843,43 @@ def make_fail_analyze_node(
                 "\nAwaiting plan re-approval via existing plan gate.\n"
             )
             next_idx = _write_phase(ctx, state, "replan", replan_body)
+            ctx.plan.tasks = patched
             return {
+                **base,
                 "tasks": _dump_tasks(patched),
                 "failure_recommendation": "replan",
                 "plan_patch": summary,
                 "awaiting_plan_reapproval": True,
-                "last_failure": None,
-                "cohort_queue": [],
-                "current_cohort": [],
                 "next_phase_index": next_idx,
                 "phase": "replan",
-                "safe_stopped": False,
                 "completed": False,
             }
 
+        # ESCALATE
         task.status = "failed"
+        attempt.outcome = "escalated"
+        intervention = {
+            "task_id": task.id,
+            "failure_category": category_value,
+            "strategy": strategy.value,
+            "reason": decision.rationale,
+            "evidence": list(decision.evidence),
+            "corrective_action": decision.proposed_corrective_action,
+            "llm_may_approve": False,
+        }
+        ctx.events.append(
+            "escalation",
+            message=f"Escalated {task.id}: {decision.rationale}",
+            task_id=task.id,
+            details=intervention,
+        )
         return {
+            **base,
             "tasks": _dump_tasks(tasks),
             "failure_recommendation": "stop",
+            "human_intervention": intervention,
             "safe_stopped": True,
-            "stop_reason": result.reason,
-            "next_phase_index": next_idx,
-            "phase": "fail_analyze",
+            "stop_reason": decision.rationale,
         }
 
     return fail_analyze_node

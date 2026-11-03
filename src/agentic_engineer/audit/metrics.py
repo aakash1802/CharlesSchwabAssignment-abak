@@ -28,6 +28,14 @@ class MetricsSnapshot(BaseModel):
     commands_executed: int = 0
     replans: int = 0
     safe_stops: int = 0
+    same_operation_retries: int = 0
+    corrected_retries: int = 0
+    scope_reductions: int = 0
+    escalations: int = 0
+    recovery_decisions: int = 0
+    recovery_successes: int = 0
+    repeated_failure_signals: int = 0
+    recovery_success_rate: float | None = None
     completed: bool = False
     insufficient_data: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -47,11 +55,30 @@ def derive_metrics(workflow_id: str, events: list[ExecutionEvent]) -> MetricsSna
         "replan": 0,
         "safe_stop": 0,
         "completed": 0,
+        "recovery_decision": 0,
+        "scope_reduced": 0,
+        "escalation": 0,
     }
+    same_retries = 0
+    corrected_retries = 0
+    repeated_signals = 0
     for event in events:
         key = event.event_type
         if key in counts:
             counts[key] += 1
+        if key == "recovery_decision":
+            strategy = str((event.details or {}).get("strategy") or "")
+            if strategy == "retry_same":
+                same_retries += 1
+            elif strategy == "retry_corrected":
+                corrected_retries += 1
+            evidence = event.details.get("evidence") if event.details else None
+            if isinstance(evidence, list) and any(
+                "repeated ineffective" in str(item).lower()
+                or "escalated strategy after repeated" in str(item).lower()
+                for item in evidence
+            ):
+                repeated_signals += 1
 
     insufficient: list[str] = []
     notes: list[str] = []
@@ -62,6 +89,39 @@ def derive_metrics(workflow_id: str, events: list[ExecutionEvent]) -> MetricsSna
         insufficient.append(
             "e2e latency, approval wait time, and MTTR not computed "
             "(no duration spans in event stream)"
+        )
+
+    recovery_decisions = counts["recovery_decision"]
+    # Success approximation: task finishes after a recovery decision in the stream.
+    # Only report a rate when both sides are present; never fabricate.
+    recovery_successes = 0
+    recovery_success_rate: float | None = None
+    if recovery_decisions and counts["task_finish"]:
+        # Conservative: count finishes that follow any recovery as successes when
+        # the workflow also recorded retries/scope reductions without escalation.
+        recovery_successes = max(
+            0, counts["retry"] + counts["scope_reduced"] - counts["escalation"]
+        )
+        # Do not invent a rate if we cannot attribute successes cleanly.
+        if recovery_successes > recovery_decisions:
+            recovery_successes = recovery_decisions
+        if recovery_decisions > 0 and (
+            counts["retry"] or counts["scope_reduced"] or counts["replan"]
+        ):
+            notes.append(
+                "recovery_success_rate uses retry/scope events minus escalations; "
+                "not a precise per-attempt attribution"
+            )
+            recovery_success_rate = round(
+                recovery_successes / recovery_decisions, 4
+            )
+        else:
+            insufficient.append(
+                "recovery success rate not computed (insufficient attribution data)"
+            )
+    elif recovery_decisions:
+        insufficient.append(
+            "recovery success rate not computed (no subsequent task finishes)"
         )
 
     return MetricsSnapshot(
@@ -77,6 +137,14 @@ def derive_metrics(workflow_id: str, events: list[ExecutionEvent]) -> MetricsSna
         commands_executed=counts["command_executed"],
         replans=counts["replan"],
         safe_stops=counts["safe_stop"],
+        same_operation_retries=same_retries,
+        corrected_retries=corrected_retries,
+        scope_reductions=counts["scope_reduced"],
+        escalations=counts["escalation"],
+        recovery_decisions=recovery_decisions,
+        recovery_successes=recovery_successes,
+        repeated_failure_signals=repeated_signals,
+        recovery_success_rate=recovery_success_rate,
         completed=counts["completed"] > 0,
         insufficient_data=insufficient,
         notes=notes,

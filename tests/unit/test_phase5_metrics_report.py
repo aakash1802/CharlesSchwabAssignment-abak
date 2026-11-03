@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentic_engineer.audit.metrics import derive_metrics
+from agentic_engineer.config.settings import clear_settings_cache
 from agentic_engineer.execution.events import ExecutionEventLog
 from agentic_engineer.graph.requirement_workflow import RequirementWorkflowService
 from agentic_engineer.llm import MockProvider
@@ -57,7 +58,9 @@ def test_report_and_history_after_success(tmp_path: Path) -> None:
     assert "Refused" in service.refuse_file_revert()
 
 
-def test_safe_stop_skips_release_gate(tmp_path: Path) -> None:
+def test_safe_stop_skips_release_gate(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("AGENTIC_MAX_TASK_RETRIES", "2")
+    clear_settings_cache()
     ws = Workspace.init(tmp_path / "safe")
     service = RequirementWorkflowService(ws, provider=MockProvider())
     service.start(

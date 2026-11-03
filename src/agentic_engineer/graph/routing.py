@@ -32,11 +32,20 @@ def route_after_execute(state: ExecutionGraphState) -> str:
 
 
 def route_after_fail_analyze(state: ExecutionGraphState) -> str:
-    if state.get("awaiting_plan_reapproval") or state.get("failure_recommendation") == "replan":
+    strategy = state.get("recovery_strategy")
+    if (
+        state.get("awaiting_plan_reapproval")
+        or state.get("failure_recommendation") == "replan"
+        or strategy == "replan"
+    ):
         return "replan_park"
-    if state.get("safe_stopped") or state.get("failure_recommendation") == "stop":
+    if (
+        state.get("safe_stopped")
+        or state.get("failure_recommendation") == "stop"
+        or strategy == "escalate"
+    ):
         return "safe_stop"
-    # retry: go back to schedule (task reset to pending/ready)
+    # retry_same / retry_corrected / reduce_scope → schedule again
     return "schedule"
 
 

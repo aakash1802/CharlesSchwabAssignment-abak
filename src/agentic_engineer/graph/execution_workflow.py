@@ -81,6 +81,7 @@ class ExecutionWorkflowService:
             events=self._events(state.workflow_id),
             readable=self.readable,
             specification=self._load_specification(state, plan),
+            workflow_dir=workflow_dir,
         )
         graph = build_execution_graph(ctx)
         return graph.compile(checkpointer=checkpointer), ctx

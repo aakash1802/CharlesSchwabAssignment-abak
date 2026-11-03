@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
-import json
-
 from agentic_engineer.agents.codegen_context import (
     CodegenContext,
     build_codegen_context,
     is_mock_without_queue,
-    parse_files_payload,
+    normalize_relative_path,
 )
+from agentic_engineer.agents.diagnostics import record_developer_attempt
 from agentic_engineer.agents.prompt_loader import load_prompt
+from agentic_engineer.config.settings import get_settings
 from agentic_engineer.llm.base import LLMError, LLMProvider, LLMRequest
-from agentic_engineer.llm.json_extract import describe_json_error, extract_json_text
+from agentic_engineer.llm.failures import ClassifiedLLMError, FailureCategory
+from agentic_engineer.llm.structured_parse import parse_structured_model
+from agentic_engineer.models.documentation import (
+    DocumentationFilesResponse,
+    documentation_files_json_schema,
+)
 from agentic_engineer.models.plan import EngineeringPlan
 from agentic_engineer.models.specification import Specification
 from agentic_engineer.models.task import Task
 from agentic_engineer.workspace.workspace import Workspace
+
+_DEFAULT_DOCS_MAX_TOKENS = 8192
 
 
 def _stub_task_notes(workspace: Workspace, task: Task) -> list[str]:
@@ -140,20 +147,86 @@ class DocumentationAgent:
         label: str,
     ) -> list[str]:
         assert self._provider is not None
+        settings = get_settings()
+        max_tokens = max(
+            int(getattr(settings, "llm_max_tokens", 4096) or 4096),
+            _DEFAULT_DOCS_MAX_TOKENS,
+        )
         request = LLMRequest(
-            prompt=context.to_prompt_json() + "\n\nReturn JSON only.",
+            prompt=(
+                context.to_prompt_json()
+                + "\n\nReturn JSON only. Prefer a single concise README.md "
+                "(target under ~120 lines). Escape newlines in JSON strings."
+            ),
             system=self._system,
             response_schema_name="DocumentationFiles",
+            response_json_schema=documentation_files_json_schema(),
+            max_tokens=max_tokens,
         )
         try:
             response = self._provider.complete(request)
-            data = json.loads(extract_json_text(response.text))
-            files = parse_files_payload(data)
+            record_developer_attempt(
+                workspace,
+                task_id=label,
+                attempt=1,
+                provider=str((response.raw or {}).get("provider") or "unknown"),
+                model=response.model or "",
+                stop_reason=response.stop_reason,
+                token_usage=response.usage or {},
+                response_type=response.response_type or "text",
+                parsing_outcome="pending",
+                validation_outcome="pending",
+                failure_category=None,
+                retry_decision="parse",
+                raw_response=response.text,
+            )
+            parsed = parse_structured_model(response, DocumentationFilesResponse)
             written: list[str] = []
-            for path, content in files:
-                workspace.write_text(path, content)
+            for item in parsed.files:
+                path = normalize_relative_path(item.path)
+                workspace.write_text(path, item.content)
                 written.append(path)
+            record_developer_attempt(
+                workspace,
+                task_id=label,
+                attempt=1,
+                provider=str((response.raw or {}).get("provider") or "unknown"),
+                model=response.model or "",
+                stop_reason=response.stop_reason,
+                token_usage=response.usage or {},
+                response_type=response.response_type or "text",
+                parsing_outcome="ok",
+                validation_outcome="ok",
+                failure_category=None,
+                retry_decision="commit",
+                raw_response=None,
+                extra={"written": written, "summary": parsed.summary},
+            )
             return written
-        except (LLMError, json.JSONDecodeError, ValueError, TypeError, OSError) as exc:
-            detail = describe_json_error(exc) if isinstance(exc, json.JSONDecodeError) else str(exc)
-            raise LLMError(f"Documentation agent failed for {label}: {detail}") from exc
+        except ClassifiedLLMError as exc:
+            record_developer_attempt(
+                workspace,
+                task_id=label,
+                attempt=1,
+                provider="unknown",
+                model="",
+                stop_reason=None,
+                token_usage={},
+                response_type="error",
+                parsing_outcome="failed",
+                validation_outcome="failed",
+                failure_category=exc.category.value,
+                retry_decision="fail",
+                raw_response=str(exc),
+            )
+            raise exc.with_prefix(f"Documentation agent failed for {label}") from exc
+        except (LLMError, ValueError, TypeError, OSError) as exc:
+            category = (
+                FailureCategory.INVALID_STRUCTURED_OUTPUT
+                if isinstance(exc, LLMError)
+                else FailureCategory.UNKNOWN
+            )
+            raise ClassifiedLLMError(
+                f"Documentation agent failed for {label}: {exc}",
+                category=category,
+            ) from exc

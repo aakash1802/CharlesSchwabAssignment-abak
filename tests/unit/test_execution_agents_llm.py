@@ -150,6 +150,36 @@ def test_documentation_llm_writes_readme(tmp_path: Path) -> None:
     )
     assert paths == ["README.md"]
     assert "Setup steps" in (ws.root / "README.md").read_text(encoding="utf-8")
+    diags = list((ws.root / ".agentic" / "artifacts" / "diagnostics").glob("t7_*.json"))
+    assert diags, "documentation agent should persist diagnostics"
+
+
+def test_documentation_llm_rejects_truncated_json(tmp_path: Path) -> None:
+    from agentic_engineer.llm.base import LLMResponse
+    from agentic_engineer.llm.failures import (
+        ClassifiedLLMError,
+        FailureCategory,
+        normalize_category,
+    )
+
+    ws = Workspace.init(tmp_path / "docs_trunc")
+    truncated = LLMResponse(
+        text='{"summary":"x","files":[{"path":"README.md","content":"# Hi',
+        model="mock-model",
+        stop_reason="max_tokens",
+        response_type="truncated",
+        raw={"stop_reason": "max_tokens", "provider": "mock"},
+    )
+    agent = DocumentationAgent(MockProvider(responses=[truncated]))
+    with pytest.raises(ClassifiedLLMError) as excinfo:
+        agent.write_task_notes(
+            workspace=ws,
+            task=Task(id="t7", name="Docs", agent="documentation"),
+        )
+    assert (
+        normalize_category(excinfo.value.category) == FailureCategory.OUTPUT_TRUNCATED
+    )
+    assert "Documentation agent failed for t7" in str(excinfo.value)
 
 
 def test_documentation_mock_product_notes(tmp_path: Path) -> None:
