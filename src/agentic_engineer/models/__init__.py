@@ -13,6 +13,12 @@ from agentic_engineer.models.requirements import (
     RequirementAnalysis,
 )
 from agentic_engineer.models.specification import Specification
+from agentic_engineer.models.execution import (
+    CommandEvidence,
+    CommandProposal,
+    DestructiveProposal,
+    ExecutionEvent,
+)
 from agentic_engineer.models.task import Task, TaskStatus
 from agentic_engineer.models.workflow import RequirementWorkflowState
 
@@ -24,7 +30,11 @@ __all__ = [
     "ApprovalType",
     "ClarificationAnswer",
     "ClarificationQuestion",
+    "CommandEvidence",
+    "CommandProposal",
+    "DestructiveProposal",
     "EngineeringPlan",
+    "ExecutionEvent",
     "RequirementAnalysis",
     "RequirementWorkflowState",
     "Specification",

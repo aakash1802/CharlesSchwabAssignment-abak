@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from agentic_engineer.llm.base import LLMError
 
 _FENCE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
+
+
+def describe_json_error(exc: BaseException) -> str:
+    """Human-readable reason when model output fails JSON parsing."""
+    if isinstance(exc, json.JSONDecodeError):
+        return (
+            f"LLM returned invalid JSON ({exc.msg} at line {exc.lineno} "
+            f"column {exc.colno}). The response was likely truncated or a "
+            "generated file string was left unclosed."
+        )
+    return str(exc)
 
 
 def extract_json_text(text: str) -> str:

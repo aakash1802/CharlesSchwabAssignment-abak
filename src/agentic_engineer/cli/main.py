@@ -70,9 +70,43 @@ def _print_workflow_status(state, *, readable_root: Path | None = None) -> None:
         typer.echo(f"specification_id: {state.specification_id}")
     if state.plan_id:
         typer.echo(f"plan_id: {state.plan_id}")
+    if state.execution_thread_id:
+        typer.echo(f"execution_thread_id: {state.execution_thread_id}")
+    if state.current_cohort_ids:
+        typer.echo(f"current_cohort: {', '.join(state.current_cohort_ids)}")
+    if state.plan is not None and state.status in {
+        "executing",
+        "awaiting_command_approval",
+        "awaiting_destructive_approval",
+        "awaiting_release_approval",
+        "safe_stopped",
+        "completed",
+    }:
+        typer.echo("tasks:")
+        for task in state.plan.tasks:
+            extra = f" retries={task.retry_count}" if task.retry_count else ""
+            err = f" error={task.error}" if task.error else ""
+            typer.echo(f"  - {task.id}: {task.status}{extra}{err}")
+    if state.pending_command is not None:
+        cmd = (
+            state.pending_command.shell
+            if state.pending_command.kind == "shell"
+            else " ".join(state.pending_command.argv)
+        )
+        typer.echo(f"pending_command: {cmd}")
+    if state.pending_destructive is not None:
+        typer.echo(
+            f"pending_destructive: {state.pending_destructive.action} "
+            f"({', '.join(state.pending_destructive.paths)})"
+        )
     if state.status == "spec_approved":
         typer.echo(
             "Plan generation stalled — retry with: agentic plan <path> [--generate]"
+        )
+    if state.status == "plan_approved":
+        typer.echo(
+            "Plan approved — start execution with: agentic run <path> --interactive"
+            "  OR  agentic resume <path>"
         )
     if readable_root is not None:
         typer.echo(f"readable_dir: {readable_root}")
@@ -94,10 +128,44 @@ def _print_workflow_status(state, *, readable_root: Path | None = None) -> None:
                 "Spec gate — agentic run <path> --interactive"
                 "  OR  agentic approve <path> | agentic reject <path>"
             )
+        elif state.status == "awaiting_command_approval":
+            typer.echo(
+                "Command gate — agentic run <path> --interactive"
+                "  OR  agentic approve <path> | agentic reject <path>"
+            )
+        elif state.status == "awaiting_destructive_approval":
+            typer.echo(
+                "Destructive gate — agentic run <path> --interactive"
+                "  OR  agentic approve <path> | agentic reject <path>"
+            )
+        elif state.status == "awaiting_release_approval":
+            typer.echo(
+                "Release gate — agentic run <path> --interactive"
+                "  OR  agentic approve <path> | agentic reject <path>"
+            )
+            typer.echo("Also: agentic report <path> | agentic history <path>")
         else:
             typer.echo("Respond with: agentic approve <path> | agentic reject <path>")
     if state.stop_reason:
         typer.echo(f"stop_reason: {state.stop_reason}")
+    if state.status == "safe_stopped":
+        failed = [
+            t
+            for t in (state.plan.tasks if state.plan is not None else [])
+            if t.status == "failed" and t.error
+        ]
+        if failed:
+            typer.secho("failure_summary:", fg=typer.colors.RED)
+            for task in failed:
+                typer.secho(
+                    f"  - {task.id} ({task.name}): {task.error}",
+                    fg=typer.colors.RED,
+                )
+        elif state.stop_reason:
+            typer.secho(
+                f"Execution stopped: {state.stop_reason}",
+                fg=typer.colors.RED,
+            )
 
 
 @app.callback()
@@ -259,11 +327,32 @@ def run_cmd(
             # Resume parked workflow and continue prompting through remaining gates.
             state = service.load_active()
         else:
-            raise WorkflowError(
-                "Provide --requirement or --requirement-file to start, "
-                "--answer to continue clarification, "
-                "or --interactive to resume and prompt through human gates"
-            )
+            # Continue into execution when plan is already approved / mid-flight.
+            state = service.load_active()
+            if state.status in {
+                "plan_approved",
+                "executing",
+                "awaiting_command_approval",
+                "awaiting_destructive_approval",
+                "awaiting_release_approval",
+            }:
+                if state.status in {
+                    "awaiting_command_approval",
+                    "awaiting_destructive_approval",
+                    "awaiting_release_approval",
+                }:
+                    raise WorkflowError(
+                        f"Human gate pending (status={state.status}). "
+                        "Use --interactive or agentic approve / reject."
+                    )
+                state = service.start_execution()
+            else:
+                raise WorkflowError(
+                    "Provide --requirement or --requirement-file to start, "
+                    "--answer to continue clarification, "
+                    "--interactive to resume and prompt through human gates, "
+                    "or run again after plan approval to start execution"
+                )
 
         if interactive:
             state = drive_interactive(
@@ -383,12 +472,28 @@ def plan_cmd(
     typer.echo(service.format_plan_display(plan))
 
 
+@app.command("resume")
+def resume_cmd(
+    project_path: str = typer.Argument(..., help="Target project path"),
+) -> None:
+    """Resume execution from the LangGraph checkpointer thread."""
+    workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
+    try:
+        state = service.resume_execution()
+    except WorkflowError as exc:
+        _handle_workspace_errors(exc)
+        return
+    typer.secho("Resumed from checkpoint.", fg=typer.colors.CYAN)
+    _print_workflow_status(state, readable_root=service.readable_root())
+
+
 @app.command("approve")
 def approve_cmd(
     project_path: str = typer.Argument(..., help="Target project path"),
     comment: Optional[str] = typer.Option(None, "--comment", "-c"),
 ) -> None:
-    """Approve the pending specification or plan (human decision)."""
+    """Approve the pending specification, plan, command, destructive, or release gate."""
     workspace = _open_workspace(project_path)
     service = RequirementWorkflowService(workspace)
     try:
@@ -399,6 +504,25 @@ def approve_cmd(
         return
     if before.status == "awaiting_plan_approval":
         typer.secho("Plan approved.", fg=typer.colors.GREEN)
+        # Continue autonomously until the next human gate (command / release).
+        # Replan continue is already handled inside approve(); only kick off
+        # initial execution when still parked at plan_approved.
+        if state.status == "plan_approved":
+            try:
+                state = service.start_execution()
+                typer.secho(
+                    "Execution started; paused at the next human gate if any.",
+                    fg=typer.colors.CYAN,
+                )
+            except WorkflowError as exc:
+                _handle_workspace_errors(exc)
+                return
+    elif before.status == "awaiting_command_approval":
+        typer.secho("Command approved; execution continued.", fg=typer.colors.GREEN)
+    elif before.status == "awaiting_destructive_approval":
+        typer.secho("Destructive action approved; execution continued.", fg=typer.colors.GREEN)
+    elif before.status == "awaiting_release_approval":
+        typer.secho("Release approved; workflow complete.", fg=typer.colors.GREEN)
     elif state.status == "awaiting_plan_approval":
         typer.secho(
             "Specification approved; plan generated — awaiting plan approval.",
@@ -419,7 +543,7 @@ def reject_cmd(
         help="Record as changes_requested instead of rejected",
     ),
 ) -> None:
-    """Reject the pending specification or plan (human decision)."""
+    """Reject the pending specification, plan, command, destructive, or release gate."""
     workspace = _open_workspace(project_path)
     service = RequirementWorkflowService(workspace)
     try:
@@ -428,9 +552,56 @@ def reject_cmd(
     except WorkflowError as exc:
         _handle_workspace_errors(exc)
         return
-    label = "Plan" if before.status == "awaiting_plan_approval" else "Specification"
+    labels = {
+        "awaiting_plan_approval": "Plan",
+        "awaiting_spec_approval": "Specification",
+        "awaiting_command_approval": "Command",
+        "awaiting_destructive_approval": "Destructive action",
+        "awaiting_release_approval": "Release",
+    }
+    label = labels.get(before.status, "Gate")
     typer.secho(f"{label} decision recorded.", fg=typer.colors.YELLOW)
     _print_workflow_status(state, readable_root=service.readable_root())
+
+
+@app.command("report")
+def report_cmd(
+    project_path: str = typer.Argument(..., help="Target project path"),
+) -> None:
+    """Write and print the engineering report (metrics from audit events only)."""
+    workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
+    try:
+        service.write_report()
+        typer.echo(service.format_report())
+    except WorkflowError as exc:
+        _handle_workspace_errors(exc)
+        return
+
+
+@app.command("history")
+def history_cmd(
+    project_path: str = typer.Argument(..., help="Target project path"),
+) -> None:
+    """Show append-only audit events for the active workflow."""
+    workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
+    try:
+        typer.echo(service.format_history())
+    except WorkflowError as exc:
+        _handle_workspace_errors(exc)
+        return
+
+
+@app.command("revert")
+def revert_cmd(
+    project_path: str = typer.Argument(..., help="Target project path"),
+) -> None:
+    """Refuse file-level revert (narrow recovery: checkpoint resume only)."""
+    workspace = _open_workspace(project_path)
+    service = RequirementWorkflowService(workspace)
+    typer.secho(service.refuse_file_revert(), fg=typer.colors.YELLOW, err=True)
+    raise typer.Exit(code=1)
 
 
 def run(argv: Optional[list[str]] = None) -> None:

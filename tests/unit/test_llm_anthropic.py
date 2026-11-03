@@ -42,6 +42,8 @@ def test_anthropic_complete_with_injected_client() -> None:
     assert '"summary": "x"' in response.text
     assert response.model == "claude-sonnet-5-5"
     assert response.raw["provider"] == "anthropic"
+    assert response.stop_reason == "end_turn"
+    assert response.usage.get("output_tokens") == 5
 
 
 def test_anthropic_requires_api_key() -> None:

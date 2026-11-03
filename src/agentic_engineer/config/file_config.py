@@ -97,6 +97,10 @@ def flatten_agentic_toml(data: dict[str, Any]) -> dict[str, Any]:
         "llm_timeout_seconds",
         "llm_max_tokens",
         "max_task_retries",
+        "max_structured_retries",
+        "developer_max_files_per_batch",
+        "developer_max_batches",
+        "developer_structured_attempts",
         "command_timeout_seconds",
     }
     for key in direct_keys:
@@ -118,7 +122,15 @@ def flatten_agentic_toml(data: dict[str, Any]) -> dict[str, Any]:
 
     execution = data.get("execution")
     if isinstance(execution, dict):
-        for key in ("max_task_retries", "command_timeout_seconds", "log_level"):
+        for key in (
+            "max_task_retries",
+            "max_structured_retries",
+            "developer_max_files_per_batch",
+            "developer_max_batches",
+            "developer_structured_attempts",
+            "command_timeout_seconds",
+            "log_level",
+        ):
             if key in execution and key not in out:
                 out[key] = execution[key]
 

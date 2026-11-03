@@ -2,9 +2,12 @@
 
 from agentic_engineer.llm.base import LLMError, LLMProvider, LLMRequest, LLMResponse
 from agentic_engineer.llm.factory import build_provider
+from agentic_engineer.llm.failures import ClassifiedLLMError, FailureCategory
 from agentic_engineer.llm.mock import MockProvider
 
 __all__ = [
+    "ClassifiedLLMError",
+    "FailureCategory",
     "LLMError",
     "LLMProvider",
     "LLMRequest",

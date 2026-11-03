@@ -2,7 +2,7 @@
 
 Prototype of a **standalone agentic software-engineering CLI**: it creates, modifies, tests, and documents *other* projects under controlled autonomy.
 
-Concrete demonstration target applications are **deferred** and will be defined later. This repository is the CLI only.
+This repository is the **CLI only**. Phase 6 complete demo target lives at sibling `../abassign1` (FastAPI ShareApp) — never embed target source here.
 
 ## Status
 
@@ -13,13 +13,15 @@ Concrete demonstration target applications are **deferred** and will be defined 
 | Phase 1 foundation | Approved |
 | Phase 2 requirement intelligence | Approved |
 | Phase 2 audit / review artifacts | [docs/phase2/](docs/phase2/) |
-| Phase 3 planning / dependency graph | **Current boundary** — implemented; see [docs/phase3/](docs/phase3/) |
+| Phase 3 planning / dependency graph | Approved — see [docs/phase3/](docs/phase3/) |
+| Phase 4 agentic execution | Implemented (vertical slice) — see [docs/phase4/](docs/phase4/) |
 | Manual test checklist | [TEST_CHECKLIST.md](TEST_CHECKLIST.md) |
-| Phases 4–6 | Deferred until lead explicitly resumes |
-| Demo target apps | Deferred |
+| Phase 5 governance | Implemented (vertical slice) — [docs/phase5/](docs/phase5/) |
+| Phase 6 demo / packaging | Delivered (runbook + seed) — [docs/phase6/](docs/phase6/); target `../abassign1`; live runs via [TEST_CHECKLIST.md](TEST_CHECKLIST.md) / [DEMO.md](docs/phase6/DEMO.md) |
+| Demo target app | Sibling `../abassign1` (complete project packaging) |
 | Runtime | Python 3.11+; install with `pip install -e ".[dev]"` |
 
-Lead intent: build and test **through Phase 3**; resume Phase 4+ only after explicit lead approval.
+Lead intent: Phase 6 demo/runbook against `../abassign1`. Reviewer steps: [docs/phase6/DEMO.md](docs/phase6/DEMO.md).
 
 ### Phase 2 review package
 
@@ -44,8 +46,9 @@ Details: [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md).
 ```text
 PycharmProjects/
 ├── CharlesSchwabAssignment-abak/   ← this repo = Agentic Engineer CLI
-└── <target-project>/               ← separate target (later)
-    └── .agentic/                   ← workflow metadata only
+└── abassign1/                      ← Phase 6 complete demo target (FastAPI)
+    ├── src/shareapp/
+    └── .agentic/                   ← workflow metadata only (after CLI runs)
 ```
 
 ## Quick start
@@ -80,7 +83,11 @@ python agenticli_test.py reject ..\phase2-test-target --comment "rework"
 python agenticli_test.py plan ..\phase2-test-target
 python agenticli_test.py approve ..\phase2-test-target --comment "plan ok"
 
-# Status / spec after decision
+# Phase 4 — execute (approve-before-run for commands)
+python agenticli_test.py run ..\phase2-test-target --interactive
+# or non-interactive: resume + approve command gates
+python agenticli_test.py resume ..\phase2-test-target
+python agenticli_test.py approve ..\phase2-test-target --comment "run tests"
 python agenticli_test.py status ..\phase2-test-target
 python agenticli_test.py spec ..\phase2-test-target
 ```
@@ -101,6 +108,7 @@ Also available: `agentic` console script, or `python -m agentic_engineer`.
 | [TEST_CHECKLIST.md](TEST_CHECKLIST.md) | Manual test commands (init, requirement file, status, spec, …) |
 | [docs/phase2/](docs/phase2/) | Phase 2 audit / review package |
 | [docs/phase3/](docs/phase3/) | Phase 3 planning / dependency graph notes |
+| [docs/phase4/](docs/phase4/) | Phase 4 agentic execution spec / plan |
 
 ## Repository layout
 
@@ -115,8 +123,12 @@ Also available: `agentic` console script, or `python -m agentic_engineer`.
 │   ├── models/
 │   ├── workspace/
 │   ├── persistence/
-│   └── llm/
-└── tests/unit/
+│   ├── llm/
+│   ├── graph/          # requirement + execution LangGraph
+│   ├── agents/
+│   ├── governance/
+│   └── execution/      # CommandRunner (git safety deferred)
+└── tests/{unit,integration}/
 ```
 
 ## License

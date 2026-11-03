@@ -46,11 +46,20 @@ class _KeyValueFormatter(logging.Formatter):
         return f"{base} | {suffix}"
 
 
+def _quiet_noisy_libraries(root_level: str) -> None:
+    """Keep HTTP client chatter out of the default console (progress lines own that)."""
+    # DEBUG/-v should still show transport detail.
+    quiet = logging.DEBUG if root_level.upper() == "DEBUG" else logging.WARNING
+    for name in ("httpx", "httpcore", "anthropic", "urllib3"):
+        logging.getLogger(name).setLevel(quiet)
+
+
 def configure_logging(level: str = "INFO") -> None:
     """Configure root logger once for CLI processes."""
     root = logging.getLogger()
     if getattr(root, "_agentic_configured", False):
         root.setLevel(level.upper())
+        _quiet_noisy_libraries(level)
         return
 
     handler = logging.StreamHandler(sys.stderr)
@@ -63,4 +72,5 @@ def configure_logging(level: str = "INFO") -> None:
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.upper())
+    _quiet_noisy_libraries(level)
     root._agentic_configured = True  # type: ignore[attr-defined]

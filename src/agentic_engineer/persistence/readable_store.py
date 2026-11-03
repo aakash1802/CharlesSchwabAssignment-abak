@@ -162,6 +162,22 @@ class ReadableArtifactStore:
         companion.write_text(body, encoding="utf-8")
         return self._write_phase(phase_index, "plan", body)
 
+    def write_execution_phase(
+        self,
+        name: str,
+        body: str,
+        *,
+        phase_index: int,
+    ) -> Path:
+        """Write a Phase 4+ execution cohort summary under readable/phases/."""
+        return self._write_phase(phase_index, name, body)
+
+    def write_report(self, body: str) -> Path:
+        """Write latest human-readable engineering report (Phase 5)."""
+        path = self._root / "REPORT.md"
+        path.write_text(body, encoding="utf-8")
+        return path
+
     def _write_phase(self, index: int, name: str, body: str) -> Path:
         path = self._phases / f"{index:02d}_{name}.md"
         path.write_text(body, encoding="utf-8")

@@ -4,13 +4,13 @@ Normative brief for the **Agentic Engineer** prototype. Statements below superse
 
 ## Status
 
-Captured from the Master Build Prompt (Phase 0), with demo-target application details **deferred** per lead direction. Architecture approved. **Current delivery boundary: Phase 3** (approved spec → task plan → dependency validation → plan approval). Phases 4+ are planned but deferred until the lead resumes them — see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Captured from the Master Build Prompt (Phase 0). Architecture approved. **Current delivery boundary: Phase 6** (demo / packaging). Spec/plan/runbook: [docs/phase6/](docs/phase6/). Phase 5 substrate: [docs/phase5/](docs/phase5/). See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 ## Problem statement
 
 Build a working prototype of a **standalone agentic software-engineering CLI** that converts natural-language requirements into reviewable engineering outcomes for **independent target projects**. The CLI must demonstrate controlled, stateful, dependency-aware agentic execution (not a thin chain of unstructured LLM calls).
 
-The CLI is the product. Concrete demonstration target applications will be defined later.
+The CLI is the product. Phase 6 complete demo target is the sibling project `../abassign1` (FastAPI ShareApp); it must not live inside this repository.
 
 ## Source statements
 
@@ -27,7 +27,7 @@ The CLI is the product. Concrete demonstration target applications will be defin
 | R9 | The CLI and each target application are separate projects; the target must not depend on the CLI at runtime. |
 | R10 | All target file operations go through a Workspace abstraction with isolation and path safety. |
 | R11 | Project-specific workflow state lives under the target’s `.agentic/`; global CLI config holds credentials/defaults only. |
-| R12 | The CLI must be capable of greenfield, brownfield, and ambiguous-requirement workflows; concrete demo apps for those modes are deferred. |
+| R12 | The CLI must be capable of greenfield, brownfield, and ambiguous-requirement workflows; Phase 6 demo target is sibling `../abassign1` (see [docs/phase6/DEMO.md](docs/phase6/DEMO.md)). |
 | R13 | The CLI must write human-readable Markdown artifacts for review (at least specification and plan when those phases exist) and a human-readable summary after each completed workflow phase, in addition to machine-readable JSON under `.agentic/`. |
 
 ## Users and context
@@ -51,7 +51,7 @@ The CLI is the product. Concrete demonstration target applications will be defin
 
 ## Out of scope (now)
 
-- Concrete demo target application source, APIs, and scenario scripts (deferred).
+- Embedding demo target application source inside this CLI repository (target is `../abassign1` only).
 - Production multi-tenant SaaS, web dashboard, K8s, Redis, Postgres, vector DBs.
 - CrewAI/AutoGen or a second custom DAG engine beside LangGraph.
 - Embedding any target application inside the CLI repository (R9).
@@ -86,12 +86,12 @@ The CLI is the product. Concrete demonstration target applications will be defin
 - “Reviewable” includes JSON under `.agentic/`, human-readable Markdown under `.agentic/readable/`, plus `agentic report` when available (R2, R8, R13).
 - Phase summaries are Markdown snapshots of that phase’s outcome (analysis, clarification, specification, approval, and later plan/execution/report phases) (R13).
 - Default max automatic retries per task is 2 unless configuration overrides (R8).
-- Fixture/temp targets are sufficient until demo apps are defined (R12).
+- Fixture/temp targets remain valid for automated tests; Phase 6 demo uses `../abassign1` (R12).
 
 ## Open questions
 
-- [ ] Confirm ADRs in [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) (especially CLI-only repo, stack, simplified replan, deferred demo apps).
+- [ ] Confirm ADRs in [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) (especially CLI-only repo, stack, simplified replan).
 - [x] Real LLM for live runs: **Anthropic** via `AGENTIC_LLM_PROVIDER=anthropic` (Phase 2). See [docs/phase2/LLM_CONFIGURATION.md](docs/phase2/LLM_CONFIGURATION.md).
-- [ ] Submission packaging expectations for the CLI alone.
-- [ ] Whether to rename/move into a physical `workspace/agentic-engineer` folder for the write-up (ADR-002).
-- [ ] *(Later)* Which demo target application(s), stacks, and scenarios to use.
+- [x] Submission packaging: **complete project at `../abassign1`**; CLI remains installable from this repo only (no embedded target source).
+- [x] Whether to rename/move into a physical `workspace/agentic-engineer` folder: **no** (ADR-002).
+- [x] Demo target: sibling `../abassign1`, FastAPI, scenarios greenfield + brownfield + ambiguous ([docs/phase6/](docs/phase6/)).

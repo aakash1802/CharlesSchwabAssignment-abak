@@ -67,6 +67,20 @@ class ApprovalService:
     def pending(self) -> list[ApprovalRecord]:
         return [r for r in self._load() if r.decision == ApprovalDecision.PENDING]
 
+    def list_all(self) -> list[ApprovalRecord]:
+        return self._load()
+
+    def _append_decision_lineage(self, record: ApprovalRecord) -> None:
+        """Mirror decided approvals into decisions.json (Architecture sketch)."""
+        path = self._store.path_for("decisions.json")
+        if path.exists():
+            raw = self._store.read_json("decisions.json")
+            items = list(raw.get("decisions", []))
+        else:
+            items = []
+        items.append(record.model_dump(mode="json"))
+        self._store.write_json("decisions.json", {"decisions": items})
+
     def decide(
         self,
         approval_id: str,
@@ -96,4 +110,5 @@ class ApprovalService:
         if updated is None:
             raise ApprovalError(f"Unknown approval id: {approval_id}")
         self._save(new_records)
+        self._append_decision_lineage(updated)
         return updated

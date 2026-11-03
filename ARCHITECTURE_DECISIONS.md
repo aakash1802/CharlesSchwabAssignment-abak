@@ -144,13 +144,15 @@ Record of decisions for the Agentic Engineer prototype. Each entry states the de
 
 ---
 
-## ADR-013 — Command execution allowlist
+## ADR-013 — Command execution (approve-before-run)
 
-**Decision:** Agents never receive a raw shell. `CommandRunner` accepts argv lists, fixed cwd=workspace root (or approved subdir), timeouts, and a policy class (e.g. allow `pytest`, `python -m …`, package managers with constraints). Destructive or unusual commands require approval or are denied.
+**Decision (Phase 4 amendment):** Agents may **propose** any argv/shell string. `CommandRunner` must **never** execute silently: every proposed command interrupts for human `approve` / `reject` first. On approve, run with fixed cwd=workspace root (or approved subdir), timeout, and captured stdout/stderr/exit. The LLM must not write the approval decision.
 
-**Context:** Unrestricted shell is incompatible with the safety section of the brief.
+**Prior decision:** Hard allowlist-only execution (deny unknown commands without a human gate).
 
-**Consequences:** Some LLM-suggested commands will be rejected — correct behavior. Expand allowlist carefully during Phase 4.
+**Context:** Lead chose a relaxed propose-any-command model with mandatory human gate (2026-11-03) so demos stay flexible without silent shell. Unrestricted *silent* shell remains incompatible with the brief (R8).
+
+**Consequences:** More approval interrupts during Testing/execution; dual UX (`--interactive` prompts + explicit `approve`/`reject`) required. Optional allowlist for auto-approve of known-safe commands may be added later only with explicit lead approval.
 
 ---
 

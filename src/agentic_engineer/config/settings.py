@@ -75,6 +75,26 @@ class Settings(BaseSettings):
     )
     llm_max_tokens: int = Field(default=4096, ge=1)
     max_task_retries: int = Field(default=2, ge=0, description="Automatic retry cap")
+    max_structured_retries: int = Field(
+        default=2,
+        ge=0,
+        description="Tighter auto-retry cap for structured-output / truncation failures",
+    )
+    developer_max_files_per_batch: int = Field(
+        default=5,
+        ge=1,
+        description="Max files the Developer Agent may emit per LLM batch",
+    )
+    developer_max_batches: int = Field(
+        default=4,
+        ge=1,
+        description="Max Developer Agent generation batches per task",
+    )
+    developer_structured_attempts: int = Field(
+        default=2,
+        ge=1,
+        description="Bounded regenerations inside a Developer Agent batch",
+    )
     command_timeout_seconds: float = Field(default=120.0, gt=0)
 
     @field_validator("llm_provider")

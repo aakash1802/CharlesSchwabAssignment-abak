@@ -9,6 +9,10 @@ LLM provider support is delivered in **Phase 2**. Later phases must **reuse** th
 | `mock` (default) | Deterministic / queued responses; CI-safe; no network |
 | `anthropic` | Claude via Anthropic Messages API |
 
+## Structured outputs (Developer Agent)
+
+The Developer Agent sends a JSON Schema (`DeveloperFiles`) on the request. Anthropic prefers provider-constrained JSON via `output_config.format` (falls back to tool-use input schema, then prompted JSON). Responses are validated with Pydantic before any workspace write. Oversized tasks are generated in bounded file batches (`developer_max_files_per_batch`, default 5). Truncation (`stop_reason=max_tokens`) is classified and retried with reduced scope — not as a generic transient failure.
+
 ## Install for live Anthropic runs
 
 ```text

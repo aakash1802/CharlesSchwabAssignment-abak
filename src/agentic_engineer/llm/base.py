@@ -16,9 +16,17 @@ class LLMRequest(BaseModel):
     system: str | None = None
     model: str | None = None
     timeout_seconds: float | None = None
+    max_tokens: int | None = Field(
+        default=None,
+        description="Optional per-request max output tokens override",
+    )
     response_schema_name: str | None = Field(
         default=None,
         description="Optional logical schema name for structured outputs",
+    )
+    response_json_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional JSON Schema for provider-constrained structured output",
     )
 
 
@@ -26,6 +34,16 @@ class LLMResponse(BaseModel):
     text: str
     model: str
     raw: dict[str, Any] = Field(default_factory=dict)
+    stop_reason: str | None = None
+    usage: dict[str, Any] = Field(default_factory=dict)
+    response_type: str = Field(
+        default="text",
+        description="Content shape: text | tool_use | structured_json | empty",
+    )
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description="Provider-parsed structured payload when available",
+    )
 
 
 @runtime_checkable

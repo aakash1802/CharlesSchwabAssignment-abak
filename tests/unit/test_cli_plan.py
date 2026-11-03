@@ -42,12 +42,17 @@ def test_cli_plan_approve_and_show(tmp_path: Path) -> None:
 
     approve = runner.invoke(app, ["approve", str(target), "--comment", "plan ok"])
     assert approve.exit_code == 0, approve.stdout + approve.stderr
-    assert "plan_approved" in approve.stdout
     assert "Plan approved" in approve.stdout
+    assert "Execution started" in approve.stdout
+    # Plan approve auto-starts execution and parks at the next human gate.
+    assert (
+        "awaiting_command_approval" in approve.stdout
+        or "awaiting_release_approval" in approve.stdout
+        or "completed" in approve.stdout
+    )
 
     show = runner.invoke(app, ["plan", str(target)])
     assert show.exit_code == 0, show.stdout + show.stderr
-    assert "plan_approved" in show.stdout
     assert "t3" in show.stdout and "t4" in show.stdout
 
     plan_json = runner.invoke(app, ["plan", str(target), "--json"])

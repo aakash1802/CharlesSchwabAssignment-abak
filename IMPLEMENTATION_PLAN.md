@@ -2,17 +2,19 @@
 
 Phased delivery for the Agentic Engineer CLI prototype. Each phase ends with tests, a short demo of what works, explicit limitations, and a **stop for lead approval**.
 
-**Status:** **Active build through Phase 3** (planning and dependency graph). Phases 4–6 remain planned but deferred until the lead explicitly resumes them.
+**Status:** **Phase 6 in progress** (lead opened 2026-11-03). Spec/plan/runbook: [docs/phase6/](docs/phase6/). Demo target: sibling `../abassign1`. Phase 5 substrate: [docs/phase5/](docs/phase5/).
 
 **Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md), [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md).
 
-**Note:** Concrete demo target applications and scenario scripts are **deferred** (see Phase 6). Current focus is the CLI through requirement → spec → plan → plan approval.
+**Note:** Phase 6 packaging = complete project at `../abassign1` (FastAPI ShareApp). CLI remains this repository only (no embedded target source).
 
 ### Lead checkpoint (recorded)
 
-- **Intent:** Implement and stabilize Phase 3; do not implement Phase 4+ yet.
-- **Architecture:** Unchanged. Resuming Phase 3 does not revise ADRs or later-phase design.
-- **Resume:** Start Phase 4 only after an explicit lead instruction (e.g. “resume Phase 4”).
+- **Intent:** Phase 6 opened (2026-11-03). Implement per `docs/phase6/SPEC.md` and `PLAN.md`; runbook [docs/phase6/DEMO.md](docs/phase6/DEMO.md).
+- **Demo target:** `../abassign1`; scenarios greenfield + brownfield + ambiguous.
+- **Packaging:** Complete project at `../abassign1`; no `workspace/` rename (ADR-002).
+- **Command policy:** Relaxed propose-any-command; mandatory human approve/reject before `CommandRunner` runs (ADR-013 amended).
+- **Git flow:** Remains disabled until re-enabled.
 
 ---
 
@@ -222,9 +224,11 @@ Planner may still be mock-driven; no Developer/Testing execution; no LangGraph t
 
 ## Phase 4 — Agentic execution (core demo)
 
+**Status:** **Implemented** (vertical slice) — lead review / Phase 5 gate pending. Details in [docs/phase4/](docs/phase4/).
+
 ### Objective
 
-LangGraph runs the approved plan: design/inspect → execute tasks (seq/parallel) → test → failure analysis → bounded retry → safe-stop; checkpoint + resume.
+LangGraph runs the approved plan: design/inspect → execute tasks (seq/logical-parallel) → test → failure analysis → bounded retry → safe-stop; checkpoint + resume. Every agent-proposed command waits for human approve/reject before run.
 
 ### Modules / files
 
@@ -232,7 +236,8 @@ LangGraph runs the approved plan: design/inspect → execute tasks (seq/parallel
 src/agentic_engineer/
   graph/state.py, builder.py, nodes_*.py, routing.py
   agents/architecture.py, developer.py, testing.py, failure_analysis.py
-  execution/commands.py, git_safety.py
+  execution/commands.py
+  # git_safety.py — deferred (git flow disabled for now)
   workspace/… (used by all writers)
 tests/integration/test_workflow_seq_parallel.py
 tests/integration/test_checkpoint_resume.py
@@ -256,7 +261,7 @@ Fixture/temp target (mock or live LLM via **existing Phase 2** `build_provider()
 
 ### Limitations
 
-Documentation agent may be minimal; replanning may be stubbed until Phase 5; no commitment to a specific product app yet. **Do not re-implement LLM providers here** (Phase 2 owns mock + Anthropic).
+Documentation agent may be minimal; replanning may be stubbed until Phase 5; **git flow / GitSafety disabled** until lead re-enables; logical parallel only (no Send fan-out); commands always approve-before-run; no commitment to a specific product app yet. **Do not re-implement LLM providers here** (Phase 2 owns mock + Anthropic).
 
 ### Exit criteria
 
@@ -265,6 +270,8 @@ Integration tests for seq/parallel, retry cap, checkpoint resume; lead approval 
 ---
 
 ## Phase 5 — Governance and reliability
+
+**Status:** **Implemented** (vertical slice) — lead resumed. Normative scope: [docs/phase5/SPEC.md](docs/phase5/SPEC.md).
 
 ### Objective
 
@@ -287,22 +294,24 @@ Report command produces a coherent summary from real events; lead approval befor
 
 ---
 
-## Phase 6 — Demo targets and packaging (deferred)
+## Phase 6 — Demo targets and packaging
+
+**Status:** Delivered (seed + runbook) — lead opened 2026-11-03. Normative scope: [docs/phase6/SPEC.md](docs/phase6/SPEC.md). Plan: [docs/phase6/PLAN.md](docs/phase6/PLAN.md). Runbook: [docs/phase6/DEMO.md](docs/phase6/DEMO.md). Operator live runs via [TEST_CHECKLIST.md](TEST_CHECKLIST.md).
 
 ### Objective
 
-Define and validate concrete target application(s) and packaging — **only when the lead opens this phase**.
+Demonstrate the CLI against sibling `../abassign1` (FastAPI ShareApp) for greenfield, brownfield, and ambiguous modes; package the **complete project** at that path while keeping the CLI installable from this repo alone.
 
-### Placeholder (to fill later)
+### Deliverables
 
-- Which target app(s) and stacks
-- Greenfield / brownfield / ambiguous scenarios
-- Independence check (target does not depend on CLI)
-- Demo script and README runbooks
+- [x] Lead decisions: path `../abassign1`, FastAPI, three scenarios, packaging = complete project there
+- [x] Complete seed app at `../abassign1` (no CLI runtime dependency)
+- [x] Reviewer runbook [docs/phase6/DEMO.md](docs/phase6/DEMO.md) + independence check
+- [x] Status docs updated (AGENTS / README / REQUIREMENTS / this plan)
 
 ### Exit criteria
 
-Agreed with lead at the time this phase starts.
+AC-P6-1..3 addressable via DEMO.md + sibling project + CLI/target separation (lead review).
 
 ---
 
@@ -317,7 +326,7 @@ Agreed with lead at the time this phase starts.
 | Graph validation | 3 | Cycles, parallel ready-set |
 | Orchestration | 4 | Seq, parallel, sync, checkpoint, interrupt (reuse Phase 2 `LLMProvider`) |
 | Recovery | 4–5 | Retry bound, safe-stop |
-| Target app behavior | 6 | Deferred with demo apps |
+| Target app behavior | 6 | `../abassign1` + DEMO.md |
 
 Paid APIs are not required for CI: use `MockProvider` and fixture transcripts.
 
@@ -350,4 +359,4 @@ No infra services.
 
 ## Stop rule
 
-After each phase: show results, list gaps, **wait for explicit approval** before starting the next phase. Do not silently continue. Do not start demo-app work until Phase 6 is explicitly opened.
+After each phase: show results, list gaps, **wait for explicit approval** before starting the next phase. Do not silently continue. Phase 6 was opened by the lead (2026-11-03); demo target is `../abassign1`.

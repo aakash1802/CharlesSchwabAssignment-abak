@@ -205,6 +205,41 @@ class RequirementWorkflowService:
         )
         return self._decide(decision, comment=comment)
 
+    def _execution(self):
+        # Lazy import avoids circular import via persistence ↔ graph ↔ workspace.
+        from agentic_engineer.graph.execution_workflow import ExecutionWorkflowService
+
+        return ExecutionWorkflowService(
+            self.workspace,
+            provider=self.provider,
+            workflows=self.workflows,
+        )
+
+    def start_execution(
+        self,
+        *,
+        force_fail_task_ids: list[str] | None = None,
+        force_destructive_task_ids: list[str] | None = None,
+        force_replan_task_ids: list[str] | None = None,
+    ) -> RequirementWorkflowState:
+        """Begin or continue execution from an approved plan / interrupt."""
+        state = self.load_active()
+        from agentic_engineer.graph.execution_workflow import ExecutionError
+
+        try:
+            return self._execution().start_or_resume(
+                state,
+                force_fail_task_ids=force_fail_task_ids,
+                force_destructive_task_ids=force_destructive_task_ids,
+                force_replan_task_ids=force_replan_task_ids,
+            )
+        except ExecutionError as exc:
+            raise WorkflowError(str(exc)) from exc
+
+    def resume_execution(self) -> RequirementWorkflowState:
+        """Resume from LangGraph checkpointer (same as start when mid-flight)."""
+        return self.start_execution()
+
     def _decide(
         self,
         decision: ApprovalDecision,
@@ -216,9 +251,84 @@ class RequirementWorkflowService:
             return self._decide_specification(state, decision, comment=comment)
         if state.status == "awaiting_plan_approval":
             return self._decide_plan(state, decision, comment=comment)
+        if state.status == "awaiting_release_approval":
+            return self._decide_release(state, decision, comment=comment)
+        if state.status in {
+            "awaiting_command_approval",
+            "awaiting_destructive_approval",
+        }:
+            return self._decide_execution_gate(state, decision, comment=comment)
         raise WorkflowError(
             f"No approval pending (status={state.status})"
         )
+
+    def _decide_release(
+        self,
+        state: RequirementWorkflowState,
+        decision: ApprovalDecision,
+        *,
+        comment: str | None,
+    ) -> RequirementWorkflowState:
+        if decision == ApprovalDecision.CHANGES_REQUESTED:
+            decision = ApprovalDecision.REJECTED
+        from agentic_engineer.graph.execution_workflow import ExecutionError
+
+        try:
+            return self._execution().finalize_release(
+                state,
+                approved=decision == ApprovalDecision.APPROVED,
+                comment=comment,
+            )
+        except ExecutionError as exc:
+            raise WorkflowError(str(exc)) from exc
+
+    def write_report(self) -> RequirementWorkflowState:
+        from agentic_engineer.reporting.report import ReportBuilder
+
+        state = self.load_active()
+        ReportBuilder(self.workspace.agentic_dir).write(state)
+        return state
+
+    def format_report(self) -> str:
+        from agentic_engineer.reporting.report import ReportBuilder
+
+        state = self.load_active()
+        return ReportBuilder(self.workspace.agentic_dir).format_cli_summary(state)
+
+    def format_history(self) -> str:
+        from agentic_engineer.reporting.report import ReportBuilder
+
+        state = self.load_active()
+        return ReportBuilder(self.workspace.agentic_dir).format_history(state)
+
+    def refuse_file_revert(self) -> str:
+        """Narrow recovery rule: only checkpoint resume is allowed."""
+        return (
+            "Refused: file-level revert is out of scope. "
+            "Allowed recovery is `agentic resume` from the LangGraph checkpointer only."
+        )
+
+    def _decide_execution_gate(
+        self,
+        state: RequirementWorkflowState,
+        decision: ApprovalDecision,
+        *,
+        comment: str | None,
+    ) -> RequirementWorkflowState:
+        if decision == ApprovalDecision.CHANGES_REQUESTED:
+            # Treat as reject for command/destructive gates.
+            decision = ApprovalDecision.REJECTED
+        from agentic_engineer.graph.execution_workflow import ExecutionError
+
+        approved = decision == ApprovalDecision.APPROVED
+        try:
+            return self._execution().resume_after_decision(
+                state,
+                approved=approved,
+                comment=comment,
+            )
+        except ExecutionError as exc:
+            raise WorkflowError(str(exc)) from exc
 
     def _decide_specification(
         self,
@@ -375,6 +485,9 @@ class RequirementWorkflowService:
         except ApprovalError as exc:
             raise WorkflowError(str(exc)) from exc
 
+        was_replan = state.plan_patch is not None and bool(
+            (state.plan_patch or {}).get("material")
+        )
         if decision == ApprovalDecision.APPROVED:
             state.status = "plan_approved"
             state.stop_reason = None
@@ -395,6 +508,13 @@ class RequirementWorkflowService:
         )
         if state.plan is not None:
             self.readable.write_plan(state, phase_index=5)
+        if decision == ApprovalDecision.APPROVED and was_replan:
+            from agentic_engineer.graph.execution_workflow import ExecutionError
+
+            try:
+                return self._execution().continue_after_replan_approval(state)
+            except ExecutionError as exc:
+                raise WorkflowError(str(exc)) from exc
         return state
 
     def format_plan_display(self, plan: EngineeringPlan) -> str:

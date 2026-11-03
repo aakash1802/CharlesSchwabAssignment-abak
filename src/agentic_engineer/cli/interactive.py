@@ -89,6 +89,38 @@ def _apply_approval_choice(
     return service.reject(comment=comment, changes_requested=False)
 
 
+def _format_command_hint(state: RequirementWorkflowState) -> str:
+    proposal = state.pending_command
+    if proposal is None:
+        return "Command proposal pending."
+    if proposal.kind == "shell":
+        cmd = proposal.shell or ""
+    else:
+        cmd = " ".join(proposal.argv)
+    lines = [
+        f"proposal_id: {proposal.proposal_id}",
+        f"command: {cmd}",
+        f"cwd: {proposal.cwd_relative}",
+    ]
+    if proposal.reason:
+        lines.append(f"reason: {proposal.reason}")
+    if proposal.task_id:
+        lines.append(f"task_id: {proposal.task_id}")
+    return "\n".join(lines)
+
+
+def _format_destructive_hint(state: RequirementWorkflowState) -> str:
+    proposal = state.pending_destructive
+    if proposal is None:
+        return "Destructive action pending."
+    return (
+        f"proposal_id: {proposal.proposal_id}\n"
+        f"action: {proposal.action}\n"
+        f"paths: {', '.join(proposal.paths)}\n"
+        f"reason: {proposal.reason}"
+    )
+
+
 def drive_interactive(
     service: RequirementWorkflowService,
     state: RequirementWorkflowState,
@@ -99,10 +131,11 @@ def drive_interactive(
 ) -> RequirementWorkflowState:
     """Advance automatically; interrupt only when human input is required."""
     terminal = {
-        "plan_approved",
         "plan_rejected",
         "spec_rejected",
         "stopped",
+        "completed",
+        "safe_stopped",
     }
 
     while state.status not in terminal:
@@ -146,6 +179,51 @@ def drive_interactive(
                 fg=typer.colors.YELLOW,
             )
             state = service.generate_plan()
+            continue
+
+        if state.status == "plan_approved":
+            typer.secho(
+                "Starting execution — inspect → schedule cohorts → run agents "
+                "(progress lines appear as each step runs)…",
+                fg=typer.colors.CYAN,
+            )
+            state = service.start_execution()
+            continue
+
+        if state.status == "awaiting_command_approval":
+            choice, comment = prompt_approval(
+                gate_label="Command approval (approve-before-run)",
+                artifact_hint=_format_command_hint(state),
+            )
+            # changes-requested is treated as reject for command gates
+            state = _apply_approval_choice(service, choice, comment)
+            continue
+
+        if state.status == "awaiting_destructive_approval":
+            choice, comment = prompt_approval(
+                gate_label="Destructive action approval",
+                artifact_hint=_format_destructive_hint(state),
+            )
+            state = _apply_approval_choice(service, choice, comment)
+            continue
+
+        if state.status == "awaiting_release_approval":
+            choice, comment = prompt_approval(
+                gate_label="Release approval (success path)",
+                artifact_hint=(
+                    "Review .agentic/readable/REPORT.md and reports/ before complete."
+                ),
+            )
+            state = _apply_approval_choice(service, choice, comment)
+            continue
+
+        if state.status == "executing":
+            # Mid-flight without a human gate — continue/resume graph.
+            typer.secho(
+                "Resuming execution from checkpoint…",
+                fg=typer.colors.CYAN,
+            )
+            state = service.start_execution()
             continue
 
         # Unexpected mid-phase statuses should not spin forever.

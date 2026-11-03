@@ -237,7 +237,7 @@ Do **not** build a second DAG runner. The task dependency graph is **data**; Pyt
 ### 5.4 Execution — tools
 
 - `Workspace` path APIs (read/write/list) with containment checks.
-- `CommandRunner`: argv allowlist / policy class, cwd fixed to workspace, timeout, captured stdout/stderr/exit, audit event.
+- `CommandRunner`: agent may propose any argv/shell string; **always** human approve/reject before run; cwd fixed to workspace, timeout, captured stdout/stderr/exit, audit event (ADR-013 Phase 4 amendment).
 - `GitSafety`: status, detect dirty tree, create workflow checkpoint branch/commit when safe; never `reset --hard` of user work.
 - `JsonStore`: atomic write (temp + rename), schema version, per-workflow lock / single-writer.
 
@@ -367,7 +367,7 @@ Approval records: id, workflow id, type, requested action, decision (`pending` \
 | Concern | Prototype approach |
 | --- | --- |
 | Files | Workspace containment; reject traversal / symlink escape; refuse CLI self-target |
-| Commands | Policy allowlist + timeout + capture; high-impact → approval |
+| Commands | Propose-any + mandatory approve/reject before run; timeout + capture; high-impact → approval |
 | Git | Inspect dirty state; checkpoint on agentic branch; no destructive reset of user changes |
 | Retries | Default max **2** automatic retries per task (configurable); Failure Analysis advises but cap is Python-enforced |
 | Safe-stop | Rejected approval, isolation failure, unapproved destructive action, exhausted retries, unrecoverable conflict — persist state for investigate/resume |

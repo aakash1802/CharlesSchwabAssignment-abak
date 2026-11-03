@@ -21,6 +21,7 @@ class ApprovalDecision(str, Enum):
 class ApprovalType(str, Enum):
     SPECIFICATION = "specification"
     PLAN = "plan"
+    COMMAND = "command"
     DESTRUCTIVE = "destructive"
     RELEASE = "release"
 
@@ -48,5 +49,11 @@ WorkflowStatus = Literal[
     "awaiting_plan_approval",
     "plan_approved",
     "plan_rejected",
+    "executing",
+    "awaiting_command_approval",
+    "awaiting_destructive_approval",
+    "awaiting_release_approval",
+    "safe_stopped",
+    "completed",
     "stopped",
 ]
